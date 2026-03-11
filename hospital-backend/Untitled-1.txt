@@ -1,0 +1,159 @@
+### [migrations.initShadowDb](https://pris.ly/d/config-datasource#migrationsinitshadowdb)
+[migrations.initShadowDb](https://pris.ly/d/config-datasource#migrationsinitshadowdb)
+
+```
+migrations.initShadowDb
+```
+
+This option allows you to define SQL statements that Prisma runs on the shadow database before creating migrations. It is useful when working with [external managed tables](https://pris.ly/docs/orm/prisma-schema/data-model/externally-managed-tables), as Prisma needs to know about the structure of these tables to correctly generate migrations.
+
+```
+migrations.initShadowDb
+```
+
+
+```
+string
+```
+
+Example:
+
+```
+import "dotenv/config"; import { defineConfig, env } from "prisma/config"; export default defineConfig({ schema: "prisma/schema.prisma", migrations: { path: "prisma/migrations", initShadowDb: ` CREATE TABLE public.users (id SERIAL PRIMARY KEY); `, }, datasource: { url: env("DATABASE_URL"), }, experimental: { externalTables: true, }, tables: { external: ["public.users"], }, });
+```
+
+
+```
+import "dotenv/config"; import { defineConfig, env } from "prisma/config"; export default defineConfig({ schema: "prisma/schema.prisma", migrations: { path: "prisma/migrations", initShadowDb: ` CREATE TABLE public.users (id SERIAL PRIMARY KEY); `, }, datasource: { url: env("DATABASE_URL"), }, experimental: { externalTables: true, }, tables: { external: ["public.users"], }, });
+```
+
+Learn more about the [externalTables feature here](https://pris.ly/docs/orm/prisma-schema/data-model/externally-managed-tables).
+
+```
+externalTables
+```
+
+### [views.path](https://pris.ly/d/config-datasource#viewspath)
+[views.path](https://pris.ly/d/config-datasource#viewspath)
+
+```
+views.path
+```
+
+The path to the directory where Prisma should look for the SQL view definitions.
+
+```
+views.path
+```
+
+
+```
+string
+```
+
+### [typedSql.path](https://pris.ly/d/config-datasource#typedsqlpath)
+[typedSql.path](https://pris.ly/d/config-datasource#typedsqlpath)
+
+```
+typedSql.path
+```
+
+The path to the directory where Prisma should look for the SQL files used for generating typings via [typedSql](https://pris.ly/docs/orm/prisma-client/using-raw-sql/typedsql).
+
+```
+typedSql
+```
+
+
+```
+typedSql.path
+```
+
+
+```
+string
+```
+
+### [experimental](https://pris.ly/d/config-datasource#experimental)
+[experimental](https://pris.ly/d/config-datasource#experimental)
+
+```
+experimental
+```
+
+Enables specific experimental features in the Prisma CLI.
+
+```
+externalTables
+```
+
+
+```
+boolean
+```
+
+
+```
+false
+```
+
+Example:
+
+```
+import "dotenv/config"; import { defineConfig, env } from "prisma/config"; export default defineConfig({ schema: "prisma/schema.prisma", migrations: { path: "prisma/migrations", }, datasource: { url: env("DATABASE_URL"), }, experimental: { externalTables: true, }, });
+```
+
+
+```
+import "dotenv/config"; import { defineConfig, env } from "prisma/config"; export default defineConfig({ schema: "prisma/schema.prisma", migrations: { path: "prisma/migrations", }, datasource: { url: env("DATABASE_URL"), }, experimental: { externalTables: true, }, });
+```
+
+If you use the externalTables feature without enabling the experimental flag, Prisma will throw an error:
+
+```
+externalTables
+```
+
+
+```
+Failed to load config file "~" as a TypeScript/JavaScript module. Error: Error: The `externalTables` configuration requires `experimental.externalTables` to be set to `true`.
+```
+
+
+```
+Failed to load config file "~" as a TypeScript/JavaScript module. Error: Error: The `externalTables` configuration requires `experimental.externalTables` to be set to `true`.
+```
+
+### [datasource.url](https://pris.ly/d/config-datasource#datasourceurl)
+[datasource.url](https://pris.ly/d/config-datasource#datasourceurl)
+
+```
+datasource.url
+```
+
+Connection URL including authentication info. Uses [the syntax provided by the database](https://pris.ly/docs/orm/reference/connection-urls#format).
+
+```
+datasource.url
+```
+
+
+```
+string
+```
+
+
+```
+''
+```
+
+Example:
+
+```
+import "dotenv/config"; import { defineConfig, env } from "prisma/config"; export default defineConfig({ schema: "prisma/schema.prisma", migrations: { path: "prisma/migrations", }, datasource: { url: env("DATABASE_URL"), }, });
+```
+
+
+```
+import "dotenv/config"; import { defineConfig, env } from "prisma/config"; export default defineConfig({ schema: "prisma/schema.prisma", migrations: { path: "prisma/migrations", }, datasource: { url: env("DATABASE_URL"), }, });
+```
