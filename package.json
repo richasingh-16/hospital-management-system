@@ -1,5 +1,5 @@
 {
-  "name": "vite-react-typescript-starter",
+  "name": "hospital",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -82,5 +82,18 @@
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.7.0",
     "vite": "^5.4.8"
-  }
+  },
+  "description": "",
+  "main": "eslint.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/richasingh-16/hospital-management-system.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/richasingh-16/hospital-management-system/issues"
+  },
+  "homepage": "https://github.com/richasingh-16/hospital-management-system#readme"
 }

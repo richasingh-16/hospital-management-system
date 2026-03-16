@@ -14,25 +14,21 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from 'recharts';
 import { useAuth } from '@/contexts/AuthContext';
 import { LiveClock } from '@/components/LiveClock';
-import { PATIENTS, APPOINTMENTS_DATA, LAB_REPORTS_DATA } from '@/lib/mockData';
-
-// ---------------------------------------------------------------------------
-// Static chart data (doesn't depend on individual patient)
-// ---------------------------------------------------------------------------
-const myConsultationsWeek = [
-  { day: 'Mon', count: 7 },
-  { day: 'Tue', count: 5 },
-  { day: 'Wed', count: 9 },
-  { day: 'Thu', count: 6 },
-  { day: 'Fri', count: 8 },
-  { day: 'Sat', count: 3 },
-  { day: 'Sun', count: 2 },
-];
+import { useDoctorDashboard } from '@/hooks/useDoctorDashboard';
 
 const DIAGNOSIS_COLORS = ['#3b82f6', '#f97316', '#a855f7', '#22c55e', '#ef4444'];
 
@@ -49,79 +45,16 @@ const doctorActions = [
 // ---------------------------------------------------------------------------
 export default function DoctorDashboard() {
   const { user } = useAuth();
-  const doctorName = user?.name ?? '';
-
-  // ── Derived from real mock data ──────────────────────────────────────────
-  // Patients whose primary doctor is me
-  const myPatients = PATIENTS.filter((p) => p.doctor === doctorName);
-
-  // All my appointments
-  const myAppointments = APPOINTMENTS_DATA.filter((a) => a.doctor === doctorName);
-
-  // Today's date string in YYYY-MM-DD
-  const today = new Date().toISOString().slice(0, 10);
-  // Today's appointments (if none match today's date we show all to avoid empty state)
-  const todayAppts = myAppointments.filter((a) => a.date === today);
-  const scheduleToShow = todayAppts.length > 0 ? todayAppts : myAppointments;
-
-  // Completed today
-  const completedToday = todayAppts.filter((a) => a.status === 'Completed').length;
-
-  // My lab reports
-  const myLabReports = LAB_REPORTS_DATA.filter((l) => l.orderedBy === doctorName);
-  const pendingReports = myLabReports.filter((l) => l.status === 'Pending' || l.status === 'Processing');
-
-  // Diagnosis breakdown from my patients (1 condition per patient)
-  const diagMap: Record<string, number> = {};
-  myPatients.forEach((p) => {
-    const key = p.condition.split(' ')[0]; // first word e.g. "Hypertension"
-    diagMap[key] = (diagMap[key] ?? 0) + 1;
-  });
-  const diagnosisData = Object.entries(diagMap).map(([name, value]) => ({ name, value }));
-
-  // Urgent cases — admitted patients with critical conditions
-  const urgentPatients = myPatients.filter(
-    (p) => p.status === 'Admitted' &&
-      ['Cardiac Arrest', 'ICU', 'Emergency'].some((kw) =>
-        p.condition.toLowerCase().includes(kw.toLowerCase()) || p.ward.toLowerCase().includes(kw.toLowerCase())
-      )
-  );
-  // Also flag patients with pending/processing critical lab results
-  const criticalLabs = myLabReports.filter(
-    (l) => l.status !== 'Ready' && ['ECG', 'Lipid', 'LFT', 'CBC'].some((kw) => l.testType.includes(kw))
-  );
-
-  // ── KPI cards ─────────────────────────────────────────────────────────────
-  const kpis = [
-    {
-      label: 'My Patients',
-      value: myPatients.length,
-      context: `${myPatients.filter((p) => p.status === 'Admitted').length} admitted · ${myPatients.filter((p) => p.status === 'OPD').length} OPD`,
-      icon: <Users className="h-5 w-5" />, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100',
-    },
-    {
-      label: 'Appointments Today',
-      value: todayAppts.length || myAppointments.length,
-      context: todayAppts.length
-        ? `${completedToday} completed · ${todayAppts.length - completedToday} remaining`
-        : `${myAppointments.filter((a) => a.status === 'Completed').length} completed overall`,
-      icon: <CalendarDays className="h-5 w-5" />, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100',
-    },
-    {
-      label: 'Pending Lab Reports',
-      value: pendingReports.length,
-      context: pendingReports.length === 0 ? 'All reports ready' : `${pendingReports.filter((l) => l.status === 'Pending').length} pending · ${pendingReports.filter((l) => l.status === 'Processing').length} processing`,
-      icon: <FlaskConical className="h-5 w-5" />, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100',
-    },
-    {
-      label: 'Consultations Done',
-      value: myAppointments.filter((a) => a.status === 'Completed').length,
-      context: `Out of ${myAppointments.length} total`,
-      icon: <CheckCircle2 className="h-5 w-5" />, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-100',
-    },
-  ];
-
-  const greeting = new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening';
+  const {
+    greeting,
+    todayAppts,
+    scheduleToShow,
+    diagnosisMix,
+    urgentPatients,
+    criticalLabs,
+    kpis,
+    consultationsWeek,
+  } = useDoctorDashboard(user?.name);
 
   return (
     <div className="space-y-5">
@@ -186,7 +119,7 @@ export default function DoctorDashboard() {
             </CardHeader>
             <CardContent className="pt-0">
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={myConsultationsWeek} barSize={28}>
+                <BarChart data={consultationsWeek} barSize={28}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
@@ -210,7 +143,7 @@ export default function DoctorDashboard() {
               <CardTitle className="text-sm font-semibold text-slate-700">My Patient Diagnosis Mix</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              {diagnosisData.length === 0 ? (
+              {diagnosisMix.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-[180px] text-center">
                   <div className="rounded-full bg-slate-50 p-3 mb-3">
                     <Users className="h-6 w-6 text-slate-400/70" />
@@ -221,8 +154,8 @@ export default function DoctorDashboard() {
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
-                    <Pie data={diagnosisData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value">
-                      {diagnosisData.map((_, i) => (
+                    <Pie data={diagnosisMix} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value">
+                      {diagnosisMix.map((_, i) => (
                         <Cell key={i} fill={DIAGNOSIS_COLORS[i % DIAGNOSIS_COLORS.length]} />
                       ))}
                     </Pie>

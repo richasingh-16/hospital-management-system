@@ -14,25 +14,18 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
 } from 'recharts';
 import { useAuth } from '@/contexts/AuthContext';
 import { LiveClock } from '@/components/LiveClock';
-import { PATIENTS, APPOINTMENTS_DATA } from '@/lib/mockData';
-
-// ---------------------------------------------------------------------------
-// Static chart data (weekly volume — replace with API when backend is ready)
-// ---------------------------------------------------------------------------
-const appointmentVolume = [
-  { day: 'Mon', scheduled: 45, walkin: 12 },
-  { day: 'Tue', scheduled: 38, walkin: 9  },
-  { day: 'Wed', scheduled: 52, walkin: 14 },
-  { day: 'Thu', scheduled: 43, walkin: 11 },
-  { day: 'Fri', scheduled: 58, walkin: 17 },
-  { day: 'Sat', scheduled: 28, walkin: 8  },
-  { day: 'Sun', scheduled: 15, walkin: 4  },
-];
+import { useReceptionDashboard } from '@/hooks/useReceptionDashboard';
 
 const statusStyles: Record<string, string> = {
   'Scheduled': 'bg-blue-100 text-blue-700',
@@ -52,57 +45,14 @@ const receptionActions = [
 // ---------------------------------------------------------------------------
 export default function ReceptionistDashboard() {
   const { user } = useAuth();
-
-  // ── Derived from real mockData ────────────────────────────────────────────
-  const today = new Date().toISOString().slice(0, 10);
-
-  // All appointments today (if none match today show all to avoid empty state)
-  const todayAppts = APPOINTMENTS_DATA.filter((a) => a.date === today);
-  const apptToShow = todayAppts.length > 0 ? todayAppts : APPOINTMENTS_DATA;
-
-  // Check-ins pending = Scheduled appointments for today
-  const checkinsPending = apptToShow.filter((a) => a.status === 'Scheduled').length;
-
-  // New registrations = patients admitted in the last 3 days
-  const threeDaysAgo = new Date();
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-  const recentPatients = PATIENTS
-    .filter((p) => new Date(p.admittedOn) >= threeDaysAgo)
-    .sort((a, b) => new Date(b.admittedOn).getTime() - new Date(a.admittedOn).getTime())
-    .slice(0, 6); // show up to 6
-
-  // Admissions today = patients with admittedOn = today
-  const admissionsToday = PATIENTS.filter((p) => p.admittedOn === today && p.status === 'Admitted').length;
-
-  // KPI cards
-  const kpis = [
-    {
-      label: 'Appointments Today',
-      value: apptToShow.length,
-      context: checkinsPending > 0 ? `${checkinsPending} pending check-in` : 'All checked in',
-      icon: <CalendarDays className="h-5 w-5" />, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100',
-    },
-    {
-      label: 'Check-ins Pending',
-      value: checkinsPending,
-      context: checkinsPending > 0 ? 'Patients awaiting check-in' : 'No pending check-ins ✓',
-      icon: <CheckSquare className="h-5 w-5" />, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100',
-    },
-    {
-      label: 'New Registrations',
-      value: recentPatients.length,
-      context: 'Registered in last 3 days',
-      icon: <UserPlus className="h-5 w-5" />, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100',
-    },
-    {
-      label: 'Admissions Today',
-      value: admissionsToday || PATIENTS.filter((p) => p.status === 'Admitted').length,
-      context: admissionsToday ? 'Admitted today' : `${PATIENTS.filter((p) => p.status === 'Admitted').length} currently admitted`,
-      icon: <BedDouble className="h-5 w-5" />, color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100',
-    },
-  ];
-
-  const greeting = new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening';
+  const {
+    greeting,
+    kpis,
+    appointmentVolume,
+    recentPatients,
+    todayAppts,
+    apptToShow,
+  } = useReceptionDashboard();
 
   return (
     <div className="space-y-5">

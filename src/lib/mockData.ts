@@ -2,28 +2,12 @@
 // Shared mock data — used across Patients, PatientProfile, Admissions, etc.
 // ---------------------------------------------------------------------------
 
-export type PatientStatus = 'OPD' | 'Admitted' | 'Discharged';
-
-export interface Patient {
-  id: string;
-  name: string;
-  age: number;
-  gender: string;
-  bloodGroup: string;
-  condition: string;
-  doctor: string;
-  ward: string;
-  bed?: string;
-  admittedOn: string;
-  status: PatientStatus;
-  contact: string;
-  email: string;
-  address: string;
-  emergencyContact: string;
-  allergies: string[];
-  medicalHistory: string[];
-  pastSurgeries: string[];
-}
+import {
+  Patient,
+  Appointment,
+  LabReport,
+  BillingInvoice,
+} from '@/lib/types';
 
 export const PATIENTS: Patient[] = [
   {
@@ -120,7 +104,7 @@ export const PATIENTS: Patient[] = [
     id: 'P-010', name: 'Kavitha Reddy', age: 44, gender: 'Female', bloodGroup: 'O+',
     condition: 'Typhoid Fever',    doctor: 'Dr. Ananya Bose',  ward: 'General',
     admittedOn: '2026-03-01', status: 'Discharged', contact: '+91 89876 54321',
-    email: 'kavitha.reddy@email.com', address: '3, Banjara Hills, Hyderabad, Telangana',
+    email: 'kavitha.reddy@email.com', address: '3, Banjara Hills',
     emergencyContact: '+91 88765 43210 (Sister)',
     allergies: ['Amoxicillin'],
     medicalHistory: ['Typhoid (2026)', 'Anemia (2019)'],
@@ -128,7 +112,7 @@ export const PATIENTS: Patient[] = [
   },
 ];
 
-export const APPOINTMENTS_DATA = [
+export const APPOINTMENTS_DATA: Appointment[] = [
   { id: 'APT-001', patientId: 'P-001', patientName: 'Rahul Verma',   doctor: 'Dr. Ananya Bose',  department: 'General Medicine', date: '2026-03-06', time: '09:00', type: 'OPD',       status: 'Scheduled'  },
   { id: 'APT-002', patientId: 'P-002', patientName: 'Priya Sharma',  doctor: 'Dr. Rohan Mehta',  department: 'Orthopedics',      date: '2026-03-06', time: '10:30', type: 'Follow-up',  status: 'Scheduled'  },
   { id: 'APT-003', patientId: 'P-003', patientName: 'Arjun Patel',   doctor: 'Dr. Neha Singh',   department: 'Neurology',        date: '2026-03-06', time: '11:00', type: 'OPD',       status: 'Completed'  },
@@ -138,7 +122,7 @@ export const APPOINTMENTS_DATA = [
   { id: 'APT-007', patientId: 'P-008', patientName: 'Deepa Menon',   doctor: 'Dr. Neha Singh',   department: 'Neurology',        date: '2026-03-05', time: '10:00', type: 'OPD',       status: 'Completed'  },
 ];
 
-export const LAB_REPORTS_DATA = [
+export const LAB_REPORTS_DATA: LabReport[] = [
   { id: 'LAB-001', patientId: 'P-001', patientName: 'Rahul Verma',  testType: 'Complete Blood Count (CBC)',  orderedBy: 'Dr. Ananya Bose',  orderedOn: '2026-03-01', status: 'Ready',      result: 'Hemoglobin: 13.2 g/dL, WBC: 7200/µL — Normal' },
   { id: 'LAB-002', patientId: 'P-003', patientName: 'Arjun Patel',  testType: 'ECG',                         orderedBy: 'Dr. Neha Singh',   orderedOn: '2026-03-05', status: 'Ready',      result: 'ST-segment elevation in V1–V4. Refer to cardiologist.' },
   { id: 'LAB-003', patientId: 'P-002', patientName: 'Priya Sharma', testType: 'X-Ray Chest',                 orderedBy: 'Dr. Rohan Mehta',  orderedOn: '2026-03-04', status: 'Processing', result: undefined },
@@ -147,10 +131,11 @@ export const LAB_REPORTS_DATA = [
   { id: 'LAB-006', patientId: 'P-001', patientName: 'Rahul Verma',  testType: 'Lipid Profile',               orderedBy: 'Dr. Ananya Bose',  orderedOn: '2026-03-06', status: 'Pending',    result: undefined },
 ];
 
-export const BILLING_DATA = [
+export const BILLING_DATA: BillingInvoice[] = [
   { id: 'INV-001', patientId: 'P-001', patientName: 'Rahul Verma',  doctor: 'Dr. Ananya Bose',  doctorFee: 1500, labTests: 2200, medication: 800,  roomCharges: 3000, date: '2026-03-01', status: 'Paid'    },
   { id: 'INV-002', patientId: 'P-002', patientName: 'Priya Sharma', doctor: 'Dr. Rohan Mehta',  doctorFee: 2000, labTests: 3400, medication: 1200, roomCharges: 4000, date: '2026-03-04', status: 'Pending' },
   { id: 'INV-003', patientId: 'P-003', patientName: 'Arjun Patel',  doctor: 'Dr. Neha Singh',   doctorFee: 3000, labTests: 5000, medication: 2500, roomCharges: 7000, date: '2026-03-05', status: 'Pending' },
   { id: 'INV-004', patientId: 'P-001', patientName: 'Rahul Verma',  doctor: 'Dr. Ananya Bose',  doctorFee: 800,  labTests: 1200, medication: 500,  roomCharges: 0,    date: '2026-02-20', status: 'Paid'    },
   { id: 'INV-005', patientId: 'P-006', patientName: 'Meera Nair',   doctor: 'Dr. Kiran Rao',    doctorFee: 1500, labTests: 2500, medication: 900,  roomCharges: 3000, date: '2026-03-02', status: 'Overdue' },
 ];
+

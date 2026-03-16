@@ -24,3 +24,21 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Environment variables — NEVER commit these, they contain secrets!
+.env
+.env.local
+.env.development
+.env.production
+
+# TypeScript build output
+build/
+*.tsbuildinfo
+
+# Prisma generated client
+src/generated/
+
+# Temp / scratch files
+Untitled-*.txt
+out.txt
+*.http
