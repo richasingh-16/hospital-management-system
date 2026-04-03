@@ -5,14 +5,16 @@ import { useAuth, type UserRole } from '@/contexts/AuthContext';
 import { useHospital } from '@/contexts/HospitalContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+// NOTE: using relative/absolute import based on standard resolution
+import { apiFetch } from '@/services/api';
 
 // ---------------------------------------------------------------------------
 // Demo accounts — shown as quick-login chips so you can test roles easily
 // ---------------------------------------------------------------------------
 const DEMO_ACCOUNTS = [
-  { label: 'Admin',        email: 'admin@mediflow.com',     password: 'admin123',   color: 'bg-blue-600 hover:bg-blue-700'    },
-  { label: 'Doctor',       email: 'doctor@mediflow.com',    password: 'doctor123',  color: 'bg-purple-600 hover:bg-purple-700' },
-  { label: 'Receptionist', email: 'reception@mediflow.com', password: 'welcome123', color: 'bg-teal-600 hover:bg-teal-700'    },
+  { label: 'Admin',        employeeId: 'ADM001',     password: 'admin123',   color: 'bg-blue-600 hover:bg-blue-700'    },
+  { label: 'Doctor',       employeeId: 'DOC001',    password: 'doctor123',  color: 'bg-purple-600 hover:bg-purple-700' },
+  { label: 'Receptionist', employeeId: 'REC001', password: 'welcome123', color: 'bg-teal-600 hover:bg-teal-700'    },
 ];
 
 const ROLE_FEATURES: Record<UserRole, string[]> = {
@@ -25,9 +27,9 @@ const ROLE_FEATURES: Record<UserRole, string[]> = {
 // LoginPage
 // ---------------------------------------------------------------------------
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, setLoggedInUser } = useAuth();
   const { hospitalInfo } = useHospital();
-  const [email, setEmail]       = useState('admin@mediflow.com');
+  const [employeeId, setEmployeeId] = useState('ADM001');
   const [password, setPassword] = useState('admin123');
   const [showPw, setShowPw]     = useState(false);
   const [error, setError]       = useState('');
@@ -38,19 +40,30 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    // Simulate a tiny network delay so it feels realistic
-    await new Promise((r) => setTimeout(r, 600));
+    try {
+      const data = await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ employeeId: employeeId.trim(), password }),
+      });
 
-    const result = login(email.trim(), password);
-    if (!result.ok) {
-      setError(result.error ?? 'Login failed.');
+      // Save token and role
+      localStorage.setItem("hospital_token", data.token);
+
+      // Instruct application that we successfully logged in using API user data
+      setLoggedInUser({
+        name: data.user.name,
+        email: data.user.employeeId,
+        role: data.user.role.toLowerCase() as UserRole,
+        avatar: data.user.name.charAt(0)
+      });
+    } catch (err: any) {
+      setError(err.message || 'Login failed.');
     }
-    // If ok, App.tsx sees user !== null and swaps to the HMS layout automatically
     setLoading(false);
   };
 
   const fillDemo = (acc: (typeof DEMO_ACCOUNTS)[0]) => {
-    setEmail(acc.email);
+    setEmployeeId(acc.employeeId);
     setPassword(acc.password);
     setError('');
   };
@@ -109,7 +122,7 @@ export default function LoginPage() {
                   onClick={() => fillDemo(acc)}
                   className={`flex-1 rounded-lg py-2 text-xs font-semibold text-white transition-all border ${
                     acc.color
-                  } ${email === acc.email ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-blue-500 border-transparent shadow-lg' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                  } ${employeeId === acc.employeeId ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-blue-500 border-transparent shadow-lg' : 'border-transparent opacity-80 hover:opacity-100'}`}
                 >
                   {acc.label}
                 </button>
@@ -126,17 +139,17 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
+            {/* Employee ID */}
             <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Email</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Employee ID</label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                  type="text"
+                  value={employeeId}
+                  onChange={(e) => { setEmployeeId(e.target.value); setError(''); }}
                   className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500 hover:bg-white/10 transition-colors h-11"
-                  placeholder="you@mediflow.com"
+                  placeholder="ADM001"
                   required
                 />
               </div>
@@ -193,11 +206,11 @@ export default function LoginPage() {
           {/* Role info */}
           <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
             <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              {email.includes('doctor') ? 'Doctor' : email.includes('reception') ? 'Receptionist' : 'Admin'} access includes
+              {employeeId.includes('DOC') ? 'Doctor' : employeeId.includes('REC') ? 'Receptionist' : 'Admin'} access includes
             </p>
             <ul className="space-y-2">
               {(ROLE_FEATURES[
-                email.includes('doctor') ? 'doctor' : email.includes('reception') ? 'receptionist' : 'admin'
+                employeeId.includes('DOC') ? 'doctor' : employeeId.includes('REC') ? 'receptionist' : 'admin'
               ]).map((item) => (
                 <li key={item} className="flex items-center gap-2 text-xs font-medium text-slate-300">
                   <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]" />

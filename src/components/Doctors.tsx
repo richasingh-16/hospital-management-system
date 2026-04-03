@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search, Stethoscope, Phone, Clock, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { apiFetch } from '@/services/api';
 import { Card, CardContent } from '@/components/ui/card';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -68,13 +70,42 @@ const FILTERS: FilterKey[] = ['All', 'Available', 'In Surgery', 'Busy', 'On Leav
 // Component
 // ---------------------------------------------------------------------------
 export default function Doctors() {
-    const [doctors, setDoctors] = useState<Doctor[]>(initialDoctors);
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
     const [search, setSearch]   = useState('');
     const [filter, setFilter]   = useState<FilterKey>('All');
     const [showAddDialog, setShowAddDialog] = useState(false);
+    const [saving, setSaving]   = useState(false);
     const [newDoctor, setNewDoctor] = useState({
         name: '', department: '', specialization: '', experience: '', contact: '',
     });
+
+    useEffect(() => {
+        apiFetch('/doctors')
+            .then((data: any[]) => {
+                const availMap: Record<string, Availability> = {
+                        AVAILABLE: 'Available',
+                        IN_SURGERY: 'In Surgery',
+                        ON_LEAVE: 'On Leave',
+                        BUSY: 'Busy',
+                    };
+                const mapped: Doctor[] = data.map(d => ({
+                    id: d.id,
+                    name: d.name,
+                    department: d.department,
+                    specialization: d.specialization,
+                    experience: d.experience,
+                    contact: d.contact,
+                    patientsToday: d.patientsToday ?? 0,
+                    availability: (availMap[d.availability] ?? 'Available') as Availability,
+                }));
+                // Show real DB doctors first, then append mock demos
+                setDoctors([...mapped, ...initialDoctors]);
+            })
+            .catch(() => {
+                // If API fails (not logged in yet, etc.) fall back to mock data
+                setDoctors(initialDoctors);
+            });
+    }, []);
 
     const filtered = doctors.filter((d) => {
         const matchSearch =
@@ -85,21 +116,41 @@ export default function Doctors() {
         return matchSearch && matchFilter;
     });
 
-    const handleAddDoctor = () => {
+    const handleAddDoctor = async () => {
         if (!newDoctor.name || !newDoctor.department) return;
-        const doctor: Doctor = {
-            id: `D-${String(doctors.length + 1).padStart(3, '0')}`,
-            name: newDoctor.name,
-            department: newDoctor.department,
-            specialization: newDoctor.specialization,
-            patientsToday: 0,
-            experience: parseInt(newDoctor.experience) || 0,
-            contact: newDoctor.contact,
-            availability: 'Available',
-        };
-        setDoctors((prev) => [doctor, ...prev]);
-        setNewDoctor({ name: '', department: '', specialization: '', experience: '', contact: '' });
-        setShowAddDialog(false);
+        setSaving(true);
+        try {
+            const result = await apiFetch('/doctors', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: newDoctor.name,
+                    department: newDoctor.department,
+                    specialization: newDoctor.specialization || 'General',
+                    experience: parseInt(newDoctor.experience) || 0,
+                    contact: newDoctor.contact,
+                }),
+            });
+
+            const doctor: Doctor = {
+                id: result.id,
+                name: result.name,
+                department: result.department,
+                specialization: result.specialization,
+                experience: result.experience,
+                contact: result.contact,
+                patientsToday: 0,
+                availability: 'Available',
+            };
+
+            setDoctors(prev => [doctor, ...prev]);
+            setNewDoctor({ name: '', department: '', specialization: '', experience: '', contact: '' });
+            setShowAddDialog(false);
+            toast.success(`${doctor.name} added and saved to database!`);
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to add doctor');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const counts = {
@@ -254,7 +305,9 @@ export default function Doctors() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
-                        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAddDoctor}>Add Doctor</Button>
+                        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAddDoctor} disabled={saving}>
+                            {saving ? 'Saving…' : 'Add Doctor'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

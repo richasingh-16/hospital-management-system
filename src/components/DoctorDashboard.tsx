@@ -76,7 +76,7 @@ export default function DoctorDashboard() {
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi, i) => (
+        {kpis.map((kpi: any, i: number) => (
           <motion.div
             key={kpi.label}
             initial={{ opacity: 0, y: 14 }}
@@ -155,7 +155,7 @@ export default function DoctorDashboard() {
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie data={diagnosisMix} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value">
-                      {diagnosisMix.map((_, i) => (
+                      {diagnosisMix.map((_: any, i: number) => (
                         <Cell key={i} fill={DIAGNOSIS_COLORS[i % DIAGNOSIS_COLORS.length]} />
                       ))}
                     </Pie>
@@ -186,7 +186,7 @@ export default function DoctorDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
-              {urgentPatients.map((p) => (
+              {urgentPatients.map((p: any) => (
                 <div key={p.id} className="flex items-start gap-2">
                   <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-red-500" />
                   <div>
@@ -195,7 +195,7 @@ export default function DoctorDashboard() {
                   </div>
                 </div>
               ))}
-              {criticalLabs.map((l) => (
+              {criticalLabs.map((l: any) => (
                 <div key={l.id} className="flex items-start gap-2">
                   <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-yellow-400" />
                   <div>
@@ -265,7 +265,7 @@ export default function DoctorDashboard() {
                   <p className="text-xs text-slate-400 mt-1">Your schedule is clear</p>
                 </div>
               ) : (
-                scheduleToShow.map((appt) => {
+                scheduleToShow.map((appt: any) => {
                   const done = appt.status === 'Completed';
                   return (
                     <div

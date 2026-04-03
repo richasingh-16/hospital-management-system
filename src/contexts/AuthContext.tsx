@@ -33,6 +33,7 @@ interface AuthContextType {
   user: AuthUser | null;
   login: (email: string, password: string) => { ok: boolean; error?: string };
   logout: () => void;
+  setLoggedInUser: (userData: AuthUser) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,8 +124,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY);
   };
 
+  const setLoggedInUser = (userData: AuthUser) => {
+    setUser(userData);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, setLoggedInUser }}>
       {children}
     </AuthContext.Provider>
   );

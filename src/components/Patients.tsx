@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Search, Plus, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/services/api';
 
 import {
     Table,
@@ -61,7 +62,8 @@ const initialPatients: Patient[] = [
     { id: 'P-010', name: 'Kavitha Reddy', age: 44, gender: 'Female', condition: 'Typhoid Fever', doctor: 'Dr. Ananya Bose', ward: 'General', admittedOn: '2026-03-01', status: 'Discharged', contact: '+91 89876 54321' },
 ];
 
-const doctors = ['Dr. Ananya Bose', 'Dr. Rohan Mehta', 'Dr. Neha Singh', 'Dr. Kiran Rao'];
+// Doctor option loaded from live API
+interface DoctorOption { id: string; name: string; department: string; }
 
 // Left border accent per status
 const rowAccent: Record<PatientStatus, string> = {
@@ -82,13 +84,43 @@ const FILTERS: { key: FilterKey; label: string; color: string }[] = [
 // Component
 // ---------------------------------------------------------------------------
 export default function Patients() {
-    const [patients, setPatients] = useState<Patient[]>(initialPatients);
+    const [patients, setPatients] = useState<Patient[]>([]);
+    const [liveDoctors, setLiveDoctors] = useState<DoctorOption[]>([]);
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState<FilterKey>('All');
     const [showAddDialog, setShowAddDialog] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [newPatient, setNewPatient] = useState({
         name: '', age: '', gender: 'Male', condition: '', doctor: '', contact: '',
     });
+
+    useEffect(() => {
+        // Load patients
+        apiFetch("/patients")
+            .then((data) => {
+                const mapped = data.map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    age: p.age,
+                    gender: p.gender,
+                    condition: p.condition || '-',
+                    doctor: p.doctor || 'Unassigned',
+                    ward: p.ward || 'General',
+                    admittedOn: new Date(p.createdAt).toISOString().split('T')[0],
+                    status: p.status || 'OPD',
+                    contact: p.contact || '-',
+                }));
+                setPatients([...mapped, ...initialPatients]);
+            })
+            .catch(console.error);
+
+        // Load live doctors for the dropdown
+        apiFetch("/doctors")
+            .then((data: any[]) => {
+                setLiveDoctors(data.map(d => ({ id: d.id, name: d.name, department: d.department })));
+            })
+            .catch(console.error);
+    }, []);
 
     const filtered = patients.filter((p) => {
         const matchSearch =
@@ -99,24 +131,46 @@ export default function Patients() {
         return matchSearch && matchStatus;
     });
 
-    const handleAddPatient = () => {
+    const handleAddPatient = async () => {
         if (!newPatient.name || !newPatient.condition || !newPatient.doctor) return;
-        const patient: Patient = {
-            id: `P-${String(patients.length + 1).padStart(3, '0')}`,
-            name: newPatient.name,
-            age: parseInt(newPatient.age) || 0,
-            gender: newPatient.gender,
-            condition: newPatient.condition,
-            doctor: newPatient.doctor,
-            ward: 'General',
-            admittedOn: new Date().toISOString().split('T')[0],
-            status: 'OPD',
-            contact: newPatient.contact,
-        };
-        setPatients((prev) => [patient, ...prev]);
-        setNewPatient({ name: '', age: '', gender: 'Male', condition: '', doctor: '', contact: '' });
-        setShowAddDialog(false);
-        toast.success(`Patient ${patient.name} registered successfully`);
+        setSaving(true);
+        try {
+            const result = await apiFetch("/patients", {
+                method: "POST",
+                body: JSON.stringify({
+                    name: newPatient.name,
+                    age: parseInt(newPatient.age) || 0,
+                    gender: newPatient.gender,
+                    condition: newPatient.condition,
+                    doctor: newPatient.doctor,
+                    ward: 'General',
+                    status: 'OPD',
+                    contact: newPatient.contact,
+                }),
+            });
+
+            const patient: Patient = {
+                id: result.id,
+                name: result.name,
+                age: result.age,
+                gender: result.gender,
+                condition: result.condition,
+                doctor: result.doctor,
+                ward: result.ward,
+                admittedOn: new Date(result.createdAt).toISOString().split('T')[0],
+                status: result.status,
+                contact: result.contact,
+            };
+
+            setPatients((prev) => [patient, ...prev]);
+            setNewPatient({ name: '', age: '', gender: 'Male', condition: '', doctor: '', contact: '' });
+            setShowAddDialog(false);
+            toast.success(`Patient ${patient.name} registered and saved to database!`);
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to register patient');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleDischarge = (id: string) => {
@@ -300,14 +354,23 @@ export default function Patients() {
                         <Select value={newPatient.doctor} onValueChange={(v) => setNewPatient({ ...newPatient, doctor: v })}>
                             <SelectTrigger><SelectValue placeholder="Assign Doctor *" /></SelectTrigger>
                             <SelectContent>
-                                {doctors.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                                {liveDoctors.length === 0 && (
+                                    <SelectItem value="__none" disabled>No doctors registered yet</SelectItem>
+                                )}
+                                {liveDoctors.map((d) => (
+                                    <SelectItem key={d.id} value={d.name}>
+                                        {d.name} — {d.department}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                         <Input placeholder="Contact Number" value={newPatient.contact} onChange={(e) => setNewPatient({ ...newPatient, contact: e.target.value })} />
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
-                        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAddPatient}>Register</Button>
+                        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAddPatient} disabled={saving}>
+                            {saving ? 'Registering…' : 'Register'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

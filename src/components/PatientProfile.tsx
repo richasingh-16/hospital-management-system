@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, Link } from 'react-router-dom';
 import {
@@ -5,8 +6,8 @@ import {
   AlertCircle, History, ReceiptText, CalendarDays,
   HeartPulse,
 } from 'lucide-react';
-import { PATIENTS, APPOINTMENTS_DATA, LAB_REPORTS_DATA, BILLING_DATA } from '@/lib/mockData';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiFetch } from '@/services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -40,11 +41,49 @@ export default function PatientProfile() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const canSeeBilling = user?.role !== 'doctor';
-  const patient = PATIENTS.find((p) => p.id === id);
+  
+  const [patient, setPatient]           = useState<any>(null);
+  const [loading, setLoading]           = useState(true);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [labs, setLabs]                 = useState<any[]>([]);
+  const [bills, setBills]               = useState<any[]>([]);
 
-  const appointments = APPOINTMENTS_DATA.filter((a) => a.patientId === id);
-  const labs         = LAB_REPORTS_DATA.filter((l) => l.patientId === id);
-  const bills        = BILLING_DATA.filter((b) => b.patientId === id);
+  useEffect(() => {
+    if (!id) return;
+
+    // 1. Core patient record
+    apiFetch(`/patients/${id}`)
+      .then(data => {
+        setPatient({
+          ...data,
+          admittedOn: new Date(data.createdAt).toISOString().split('T')[0],
+          bloodGroup: data.bloodGroup || 'N/A',
+          address: data.address || 'N/A',
+          emergencyContact: data.emergencyContact || 'N/A',
+          email: data.email || 'N/A',
+          allergies: data.allergies || [],
+          medicalHistory: data.medicalHistory || [],
+          pastSurgeries: data.pastSurgeries || [],
+        });
+        setLoading(false);
+      })
+      .catch(err => { console.error(err); setLoading(false); });
+
+    // 2. Sub-tab data — all filtered by patientId on the backend
+    apiFetch(`/appointments?patientId=${id}`).then(setAppointments).catch(() => setAppointments([]));
+    apiFetch(`/lab-reports?patientId=${id}`).then(setLabs).catch(() => setLabs([]));
+    apiFetch(`/billing?patientId=${id}`).then(setBills).catch(() => setBills([]));
+  }, [id]);
+
+
+
+  if (loading) {
+    return (
+      <div className="flex h-96 flex-col items-center justify-center text-slate-400">
+        <p className="text-lg font-medium">Fetching patient records...</p>
+      </div>
+    );
+  }
 
   if (!patient) {
     return (
@@ -90,7 +129,7 @@ export default function PatientProfile() {
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-800">{patient.name}</h1>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor[patient.status]}`}>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor[patient.status as keyof typeof statusColor] ?? 'bg-slate-100 text-slate-600'}`}>
                   {patient.status}
                 </span>
               </div>
@@ -175,7 +214,7 @@ export default function PatientProfile() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    {patient.allergies.map((a) => (
+                    {patient.allergies.map((a: string) => (
                       <span key={a} className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-600 border border-red-100">
                         {a}
                       </span>
@@ -227,7 +266,7 @@ export default function PatientProfile() {
                   <p className="text-sm text-slate-400">No history recorded.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {patient.medicalHistory.map((h, i) => (
+                    {patient.medicalHistory.map((h: string, i: number) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
                         <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-400" />
                         {h}
@@ -247,7 +286,7 @@ export default function PatientProfile() {
                   <p className="text-sm text-slate-400">No surgeries on record.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {patient.pastSurgeries.map((s, i) => (
+                    {patient.pastSurgeries.map((s: string, i: number) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
                         <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-orange-400" />
                         {s}

@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { apiFetch } from '@/services/api';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -15,12 +17,14 @@ import {
 } from '@/components/ui/select';
 
 // ---------------------------------------------------------------------------
-// Types & mock data
+// Types
 // ---------------------------------------------------------------------------
 type ApptStatus = 'Scheduled' | 'Completed' | 'Cancelled';
 
 interface Appointment {
   id: string;
+  patientId: string;
+  doctorId: string;
   patientName: string;
   doctor: string;
   department: string;
@@ -30,24 +34,8 @@ interface Appointment {
   status: ApptStatus;
 }
 
-const initialAppointments: Appointment[] = [
-  { id: 'APT-001', patientName: 'Rahul Verma', doctor: 'Dr. Ananya Bose', department: 'General Medicine', date: '2026-03-06', time: '09:00', type: 'OPD', status: 'Scheduled' },
-  { id: 'APT-002', patientName: 'Priya Sharma', doctor: 'Dr. Rohan Mehta', department: 'Orthopedics', date: '2026-03-06', time: '10:30', type: 'Follow-up', status: 'Scheduled' },
-  { id: 'APT-003', patientName: 'Arjun Patel', doctor: 'Dr. Neha Singh', department: 'Neurology', date: '2026-03-06', time: '11:00', type: 'OPD', status: 'Completed' },
-  { id: 'APT-004', patientName: 'Sunita Iyer', doctor: 'Dr. Ananya Bose', department: 'General Medicine', date: '2026-03-06', time: '14:00', type: 'Checkup', status: 'Scheduled' },
-  { id: 'APT-005', patientName: 'Vikram Desai', doctor: 'Dr. Kiran Rao', department: 'Gastroenterology', date: '2026-03-07', time: '09:30', type: 'Follow-up', status: 'Scheduled' },
-  { id: 'APT-006', patientName: 'Meera Nair', doctor: 'Dr. Priya Kapoor', department: 'Cardiology', date: '2026-03-07', time: '11:30', type: 'OPD', status: 'Cancelled' },
-  { id: 'APT-007', patientName: 'Aditya Kumar', doctor: 'Dr. Rohan Mehta', department: 'Orthopedics', date: '2026-03-07', time: '15:00', type: 'Emergency', status: 'Scheduled' },
-  { id: 'APT-008', patientName: 'Deepa Menon', doctor: 'Dr. Neha Singh', department: 'Neurology', date: '2026-03-05', time: '10:00', type: 'OPD', status: 'Completed' },
-];
-
-const doctors = [
-  { name: 'Dr. Ananya Bose', dept: 'General Medicine' },
-  { name: 'Dr. Rohan Mehta', dept: 'Orthopedics' },
-  { name: 'Dr. Neha Singh', dept: 'Neurology' },
-  { name: 'Dr. Kiran Rao', dept: 'Gastroenterology' },
-  { name: 'Dr. Priya Kapoor', dept: 'Cardiology' },
-];
+interface PatientOption { id: string; name: string; }
+interface DoctorOption  { id: string; name: string; department: string; }
 
 const timeSlots = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -56,22 +44,44 @@ const timeSlots = [
 
 const statusColors: Record<ApptStatus, string> = {
   Scheduled: 'bg-blue-100 text-blue-700 border-blue-200',
-  Completed: 'bg-green-100 text-green-700 border-green-200',
-  Cancelled: 'bg-red-100 text-red-700 border-red-200',
+  Completed:  'bg-green-100 text-green-700 border-green-200',
+  Cancelled:  'bg-red-100 text-red-700 border-red-200',
 };
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 export default function AppointmentSystem() {
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [appointments, setAppointments]   = useState<Appointment[]>([]);
+  const [patients,     setPatients]       = useState<PatientOption[]>([]);
+  const [doctors,      setDoctors]        = useState<DoctorOption[]>([]);
+  const [search,       setSearch]         = useState('');
+  const [filterStatus, setFilterStatus]   = useState('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [saving, setSaving]               = useState(false);
   const [newAppt, setNewAppt] = useState({
-    patientName: '', doctorIndex: '', date: '', time: '', type: 'OPD',
+    patientId: '', doctorId: '', date: '', time: '', type: 'OPD',
   });
 
+  // ── Load all data on mount ──────────────────────────────────────────────
+  useEffect(() => {
+    // Appointments list
+    apiFetch('/appointments')
+      .then((data: Appointment[]) => setAppointments(data))
+      .catch(console.error);
+
+    // Patient options for the booking form dropdown
+    apiFetch('/patients')
+      .then((data: any[]) => setPatients(data.map(p => ({ id: p.id, name: p.name }))))
+      .catch(console.error);
+
+    // Doctor options for the booking form dropdown
+    apiFetch('/doctors')
+      .then((data: any[]) => setDoctors(data.map(d => ({ id: d.id, name: d.name, department: d.department }))))
+      .catch(console.error);
+  }, []);
+
+  // ── Filter ──────────────────────────────────────────────────────────────
   const filtered = appointments.filter((a) => {
     const matchSearch =
       a.patientName.toLowerCase().includes(search.toLowerCase()) ||
@@ -81,31 +91,58 @@ export default function AppointmentSystem() {
     return matchSearch && matchStatus;
   });
 
-  const updateStatus = (id: string, status: ApptStatus) => {
-    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
-  };
-
-  const handleAdd = () => {
-    if (!newAppt.patientName || !newAppt.doctorIndex || !newAppt.date || !newAppt.time) return;
-    const doc = doctors[parseInt(newAppt.doctorIndex)];
-    const appt: Appointment = {
-      id: `APT-${String(appointments.length + 1).padStart(3, '0')}`,
-      patientName: newAppt.patientName,
-      doctor: doc.name,
-      department: doc.dept,
-      date: newAppt.date,
-      time: newAppt.time,
-      type: newAppt.type,
-      status: 'Scheduled',
+  // ── Status update ────────────────────────────────────────────────────────
+  const updateStatus = async (id: string, status: ApptStatus) => {
+    const statusMap: Record<string, string> = {
+      Completed: 'COMPLETED', Cancelled: 'CANCELLED', Scheduled: 'SCHEDULED',
     };
-    setAppointments((prev) => [appt, ...prev]);
-    setNewAppt({ patientName: '', doctorIndex: '', date: '', time: '', type: 'OPD' });
-    setShowAddDialog(false);
+    try {
+      await apiFetch(`/appointments/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: statusMap[status] }),
+      });
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+      toast.success(`Appointment marked as ${status}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update status');
+    }
   };
 
-  const scheduled = appointments.filter((a) => a.status === 'Scheduled').length;
-  const completed = appointments.filter((a) => a.status === 'Completed').length;
-  const cancelled = appointments.filter((a) => a.status === 'Cancelled').length;
+  // ── Book new appointment ─────────────────────────────────────────────────
+  const handleAdd = async () => {
+    if (!newAppt.patientId || !newAppt.doctorId || !newAppt.date || !newAppt.time) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    setSaving(true);
+    try {
+      // Build ISO datetime from separate date + time inputs
+      const dateTime = new Date(`${newAppt.date}T${newAppt.time}:00`).toISOString();
+      const result = await apiFetch('/appointments', {
+        method: 'POST',
+        body: JSON.stringify({
+          patientId: newAppt.patientId,
+          doctorId:  newAppt.doctorId,
+          dateTime,
+          type:  newAppt.type,
+          notes: newAppt.type, // store type in notes field
+        }),
+      });
+
+      setAppointments(prev => [result, ...prev]);
+      setNewAppt({ patientId: '', doctorId: '', date: '', time: '', type: 'OPD' });
+      setShowAddDialog(false);
+      toast.success('Appointment booked successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to book appointment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const scheduled = appointments.filter(a => a.status === 'Scheduled').length;
+  const completed  = appointments.filter(a => a.status === 'Completed').length;
+  const cancelled  = appointments.filter(a => a.status === 'Cancelled').length;
 
   return (
     <div className="space-y-6">
@@ -122,9 +159,9 @@ export default function AppointmentSystem() {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Scheduled', value: scheduled, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Completed', value: completed, color: 'text-green-600', bg: 'bg-green-50' },
-          { label: 'Cancelled', value: cancelled, color: 'text-red-600', bg: 'bg-red-50' },
+          { label: 'Scheduled', value: scheduled, color: 'text-blue-600',  bg: 'bg-blue-50'  },
+          { label: 'Completed', value: completed,  color: 'text-green-600', bg: 'bg-green-50' },
+          { label: 'Cancelled', value: cancelled,  color: 'text-red-600',   bg: 'bg-red-50'   },
         ].map((s) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <Card className={`${s.bg} border-0 shadow-sm`}>
@@ -154,9 +191,7 @@ export default function AppointmentSystem() {
               />
             </div>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Filter" />
-              </SelectTrigger>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Filter" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="Scheduled">Scheduled</SelectItem>
@@ -174,16 +209,23 @@ export default function AppointmentSystem() {
                 <TableHead>Patient</TableHead>
                 <TableHead>Doctor</TableHead>
                 <TableHead>Department</TableHead>
-                <TableHead>Date & Time</TableHead>
+                <TableHead>Date &amp; Time</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-10 text-center text-slate-400">
+                    {appointments.length === 0 ? 'No appointments yet. Book the first one!' : 'No results found.'}
+                  </TableCell>
+                </TableRow>
+              )}
               {filtered.map((a) => (
                 <TableRow key={a.id} className="hover:bg-slate-50">
-                  <TableCell className="font-mono text-xs text-slate-500">{a.id}</TableCell>
+                  <TableCell className="font-mono text-xs text-slate-500">{a.id.slice(0, 8)}…</TableCell>
                   <TableCell className="font-medium text-slate-800">{a.patientName}</TableCell>
                   <TableCell className="text-sm text-slate-600">{a.doctor}</TableCell>
                   <TableCell className="text-sm text-slate-500">{a.department}</TableCell>
@@ -202,7 +244,7 @@ export default function AppointmentSystem() {
                       {a.status === 'Scheduled' && (
                         <>
                           <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-200 hover:bg-green-50" onClick={() => updateStatus(a.id, 'Completed')}>Complete</Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50" onClick={() => updateStatus(a.id, 'Cancelled')}>Cancel</Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"   onClick={() => updateStatus(a.id, 'Cancelled')}>Cancel</Button>
                         </>
                       )}
                     </div>
@@ -214,29 +256,42 @@ export default function AppointmentSystem() {
         </CardContent>
       </Card>
 
-      {/* Book Dialog */}
+      {/* Book Appointment Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Book Appointment</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <Input placeholder="Patient Name *" value={newAppt.patientName} onChange={(e) => setNewAppt({ ...newAppt, patientName: e.target.value })} />
-            <Select value={newAppt.doctorIndex} onValueChange={(v) => setNewAppt({ ...newAppt, doctorIndex: v })}>
-              <SelectTrigger><SelectValue placeholder="Select Doctor *" /></SelectTrigger>
+
+            {/* Patient — live from DB */}
+            <Select value={newAppt.patientId} onValueChange={(v) => setNewAppt({ ...newAppt, patientId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select Patient *" /></SelectTrigger>
               <SelectContent>
-                {doctors.map((d, i) => (
-                  <SelectItem key={d.name} value={String(i)}>{d.name} — {d.dept}</SelectItem>
-                ))}
+                {patients.length === 0 && <SelectItem value="__none" disabled>No patients registered yet</SelectItem>}
+                {patients.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
+
+            {/* Doctor — live from DB */}
+            <Select value={newAppt.doctorId} onValueChange={(v) => setNewAppt({ ...newAppt, doctorId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select Doctor *" /></SelectTrigger>
+              <SelectContent>
+                {doctors.length === 0 && <SelectItem value="__none" disabled>No doctors registered yet</SelectItem>}
+                {doctors.map(d => <SelectItem key={d.id} value={d.id}>{d.name} — {d.department}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            {/* Date + Time */}
             <div className="grid grid-cols-2 gap-3">
               <Input type="date" value={newAppt.date} onChange={(e) => setNewAppt({ ...newAppt, date: e.target.value })} />
               <Select value={newAppt.time} onValueChange={(v) => setNewAppt({ ...newAppt, time: v })}>
                 <SelectTrigger><SelectValue placeholder="Pick Time *" /></SelectTrigger>
                 <SelectContent>
-                  {timeSlots.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {timeSlots.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Type */}
             <Select value={newAppt.type} onValueChange={(v) => setNewAppt({ ...newAppt, type: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -249,7 +304,9 @@ export default function AppointmentSystem() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAdd}>Book</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAdd} disabled={saving}>
+              {saving ? 'Booking…' : 'Book'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
