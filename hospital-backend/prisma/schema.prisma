@@ -54,11 +54,20 @@ model Patient {
   name      String
   age       Int
   gender    String
+  contact   String?
+  condition String?
+  doctor    String?
+  ward      String?  @default("General")
+  status    String?  @default("OPD")
 
   createdAt DateTime @default(now())
 
   appointments Appointment[]
+  admissions   Admission[]
+  invoices     Invoice[]
+  labReports   LabReport[]
 }
+
 
 //////////////////////////////////////////////////////
 // DEPARTMENT
@@ -69,6 +78,40 @@ model Department {
   name String @unique
 
   doctors Doctor[]
+}
+
+//////////////////////////////////////////////////////
+// WARDS & BEDS
+//////////////////////////////////////////////////////
+
+model Ward {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  floor     Int
+  capacity  Int
+
+  beds      Bed[]
+
+  createdAt DateTime @default(now())
+}
+
+model Bed {
+  id        String   @id @default(uuid())
+  wardId    String
+  number    Int
+  status    BedStatus @default(AVAILABLE)
+
+  ward      Ward     @relation(fields: [wardId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  admissions Admission[]
+}
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
 }
 
 //////////////////////////////////////////////////////
@@ -93,6 +136,7 @@ model Doctor {
   department Department @relation(fields: [departmentId], references: [id])
 
   appointments Appointment[]
+  admissions   Admission[]
 }
 
 //////////////////////////////////////////////////////
@@ -111,4 +155,85 @@ model Appointment {
 
   patient Patient @relation(fields: [patientId], references: [id])
   doctor  Doctor  @relation(fields: [doctorId], references: [id])
+}
+
+//////////////////////////////////////////////////////
+// ADMISSIONS
+//////////////////////////////////////////////////////
+
+model Admission {
+  id        String   @id @default(uuid())
+  patientId String
+  doctorId  String
+  bedId     String
+  reason    String
+
+  patient   Patient @relation(fields: [patientId], references: [id])
+  doctor    Doctor  @relation(fields: [doctorId], references: [id])
+  bed       Bed     @relation(fields: [bedId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+//////////////////////////////////////////////////////
+// BILLING / INVOICES
+//////////////////////////////////////////////////////
+
+enum InvoiceStatus {
+  PAID
+  PENDING
+  OVERDUE
+}
+
+model Invoice {
+  id          String        @id @default(uuid())
+  patientId   String
+  doctorName  String
+  doctorFee   Float         @default(0)
+  labTests    Float         @default(0)
+  medication  Float         @default(0)
+  roomCharges Float         @default(0)
+  status      InvoiceStatus @default(PENDING)
+
+  createdAt   DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+}
+
+//////////////////////////////////////////////////////
+// LAB REPORTS
+//////////////////////////////////////////////////////
+
+enum LabStatus {
+  PENDING
+  PROCESSING
+  READY
+}
+
+model LabReport {
+  id               String    @id @default(uuid())
+  patientId        String?              // optional — independent tests have no patient record
+  patientName      String               // always stored (typed manually if no patientId)
+  testType         String
+  orderedBy        String               // doctor name (string, not FK — can be external)
+  status           LabStatus @default(PENDING)
+  resultFilePath   String?              // path on disk where file is saved
+  resultFileName   String?              // original filename shown to user
+
+  createdAt        DateTime @default(now())
+
+  patient          Patient?  @relation(fields: [patientId], references: [id])
+}
+
+//////////////////////////////////////////////////////
+// ACTIVITY LOG
+//////////////////////////////////////////////////////
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  actionType String   // "patient" | "appointment" | "billing" | "lab" | "doctor"
+  message    String   // human-readable description of the action
+  actor      String   // name of the logged-in user who performed the action
+
+  createdAt  DateTime @default(now())
 }

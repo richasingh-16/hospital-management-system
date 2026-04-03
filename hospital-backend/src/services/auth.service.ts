@@ -5,7 +5,7 @@ export const registerEmployee = async (
   employeeId: string,
   name: string,
   password: string,
-  role: "ADMIN" | "DOCTOR" | "RECEPTIONIST"
+  role: "ADMIN" | "DOCTOR" | "RECEPTIONIST" | "LAB_TECHNICIAN"
 ) => {
 
   const hashedPassword = await bcrypt.hash(password, 10)
