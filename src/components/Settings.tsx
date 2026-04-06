@@ -79,13 +79,21 @@ export default function Settings() {
   const [showPw, setShowPw]           = useState({ current: false, next: false, confirm: false });
   const [pwSaving, setPwSaving]       = useState(false);
 
-  // ── Load departments & users ─────────────────────────────────────────────
+  // System settings (currency, dateFormat)
+  const [sysSettings, setSysSettings]   = useState({ currency: 'INR', dateFormat: 'DD/MM/YYYY' });
+  const [sysSaving, setSysSaving]       = useState(false);
+
+  // ── Load departments & users & system settings ──────────────────────────
   useEffect(() => {
     setDeptLoading(true);
     apiFetch('/departments').then(setDepartments).catch(() => {}).finally(() => setDeptLoading(false));
 
     setUsersLoading(true);
     apiFetch('/users').then(setUsers).catch(() => {}).finally(() => setUsersLoading(false));
+
+    apiFetch('/settings')
+      .then((data: Record<string, string>) => setSysSettings(prev => ({ ...prev, ...data })))
+      .catch(() => {}); // keep defaults on failure
   }, []);
 
   // ── Hospital Info save ────────────────────────────────────────────────────
@@ -169,6 +177,22 @@ export default function Settings() {
   const handleSaveNotifs = () => {
     localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(notifPrefs));
     toast.success('Notification preferences saved');
+  };
+
+  // ── Save system settings to backend ──────────────────────────────────────
+  const handleSaveSystem = async () => {
+    setSysSaving(true);
+    try {
+      await apiFetch('/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(sysSettings),
+      });
+      toast.success('System settings saved');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save system settings');
+    } finally {
+      setSysSaving(false);
+    }
   };
 
   const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
@@ -518,7 +542,7 @@ export default function Settings() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Currency</label>
-                  <Select defaultValue="INR">
+                  <Select value={sysSettings.currency} onValueChange={v => setSysSettings(p => ({ ...p, currency: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="INR">Indian Rupee (₹)</SelectItem>
@@ -529,7 +553,7 @@ export default function Settings() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Date Format</label>
-                  <Select defaultValue="DD/MM/YYYY">
+                  <Select value={sysSettings.dateFormat} onValueChange={v => setSysSettings(p => ({ ...p, dateFormat: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
@@ -550,8 +574,8 @@ export default function Settings() {
                   </Button>
                 </div>
               </div>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => toast.success('System settings saved')}>
-                <Save className="mr-2 h-4 w-4" /> Save System Settings
+              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSaveSystem} disabled={sysSaving}>
+                <Save className="mr-2 h-4 w-4" /> {sysSaving ? 'Saving…' : 'Save System Settings'}
               </Button>
             </CardContent>
           </Card>

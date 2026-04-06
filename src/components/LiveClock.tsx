@@ -6,7 +6,7 @@ export function LiveClock() {
 
   useEffect(() => {
     // Update the time every minute
-    const timer = setInterval(() => setTime(new Date()), 60000);
+    const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 

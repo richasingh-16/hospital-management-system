@@ -74,4 +74,17 @@ export const getDoctors = async () => {
     patientsToday: d.patientsToday,
     createdAt: d.createdAt,
   }));
+};
+
+export const updateDoctorStatus = async (id: string, status: string) => {
+  const valid = ['AVAILABLE', 'BUSY', 'IN_SURGERY', 'ON_LEAVE'];
+  if (!valid.includes(status)) throw new Error('Invalid status value');
+
+  const doctor = await prisma.doctor.update({
+    where: { id },
+    data: { status: status as any },
+    include: { user: { select: { name: true } } },
+  });
+
+  return { id: doctor.id, name: doctor.user.name, status: doctor.status };
 };

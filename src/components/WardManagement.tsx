@@ -29,7 +29,7 @@ import { apiFetch } from '@/services/api';
 // Types
 // ---------------------------------------------------------------------------
 interface Admission {
-  id: string; patientId: string; patientName: string; age: number; gender: string;
+  id: string; admissionNumber?: number; patientId: string; patientName: string; age: number; gender: string;
   doctor: string; ward: string; bed: string; admittedOn: string; condition: string;
   status: 'Active' | 'Discharged';
 }
@@ -206,7 +206,9 @@ export default function WardManagement() {
                     )}
                     {filtered.map(adm => (
                       <TableRow key={adm.id} className="hover:bg-slate-50">
-                        <TableCell className="font-mono text-xs text-slate-500">{adm.id.slice(0, 8)}…</TableCell>
+                        <TableCell className="font-mono text-xs text-slate-500" title={adm.id}>
+                          {adm.admissionNumber ? `ADM-${String(adm.admissionNumber).padStart(3, '0')}` : adm.id.slice(0, 8) + '…'}
+                        </TableCell>
                         <TableCell>
                           <button onClick={() => adm.patientId && navigate(`/patients/${adm.patientId}`)} className="group flex items-center gap-1 text-left">
                             <div>

@@ -1,5 +1,5 @@
 import { Request, Response } from "express"
-import { getPatients, createPatient, getPatientById } from "../services/patient.service"
+import { getPatients, createPatient, getPatientById, updatePatient, deletePatient } from "../services/patient.service"
 import { logActivity } from "../lib/activity-logger"
 
 export const fetchPatients = async (req: Request, res: Response) => {
@@ -23,5 +23,34 @@ export const addPatient = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Patient Creation Error:", error);
     res.status(500).json({ error: error.message || "Failed to create patient" })
+  }
+}
+
+export const patchPatient = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const patient = await updatePatient(String(req.params.id), req.body);
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
+    const actor = (req as any).user?.name ?? "System";
+    if (req.body.status === 'Discharged') {
+      await logActivity("discharge", `Patient ${patient.name} discharged`, actor);
+    }
+    res.json(patient);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to update patient" });
+  }
+}
+
+export const deletePatientRecord = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const id = req.params.id as string;
+    const patient = await deletePatient(id);
+    const actor = (req as any).user?.name ?? "System";
+    await logActivity("patient", `Patient ${patient.name} record deleted`, actor);
+    res.json({ message: "Patient deleted successfully" });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+       return res.status(404).json({ error: "Patient not found" });
+    }
+    res.status(500).json({ error: error.message || "Failed to delete patient" });
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Plus, Upload, Download, FileText } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { apiFetch } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -23,6 +24,7 @@ type ReportStatus = 'Pending' | 'Processing' | 'Ready';
 
 interface LabReport {
     id: string;
+    reportNumber?: number;
     patientName: string;
     patientId: string | null;
     testType: string;
@@ -35,20 +37,6 @@ interface LabReport {
 
 interface PatientOption { id: string; name: string; doctor: string; }
 interface DoctorOption  { id: string; name: string; }
-
-// ---------------------------------------------------------------------------
-// Mock demo data (stays visible so new visitors understand the workflow)
-// ---------------------------------------------------------------------------
-const mockReports: LabReport[] = [
-    { id: 'LAB-001', patientName: 'Rahul Verma',   patientId: 'P-001', testType: 'Complete Blood Count (CBC)',   orderedBy: 'Dr. Ananya Bose', orderedOn: '2026-03-01', status: 'Ready',      hasResult: false, resultFileName: null },
-    { id: 'LAB-002', patientName: 'Arjun Patel',   patientId: 'P-003', testType: 'ECG',                          orderedBy: 'Dr. Neha Singh',   orderedOn: '2026-03-05', status: 'Ready',      hasResult: false, resultFileName: null },
-    { id: 'LAB-003', patientName: 'Priya Sharma',  patientId: 'P-002', testType: 'X-Ray Chest',                  orderedBy: 'Dr. Rohan Mehta',  orderedOn: '2026-03-04', status: 'Processing', hasResult: false, resultFileName: null },
-    { id: 'LAB-004', patientName: 'Sunita Iyer',   patientId: 'P-004', testType: 'HbA1c',                        orderedBy: 'Dr. Ananya Bose',  orderedOn: '2026-03-03', status: 'Ready',      hasResult: false, resultFileName: null },
-    { id: 'LAB-005', patientName: 'Sanjay Gupta',  patientId: 'P-009', testType: 'Liver Function Test (LFT)',    orderedBy: 'Dr. Kiran Rao',    orderedOn: '2026-03-03', status: 'Ready',      hasResult: false, resultFileName: null },
-    { id: 'LAB-006', patientName: 'Meera Nair',    patientId: 'P-006', testType: 'Sputum Culture',               orderedBy: 'Dr. Kiran Rao',    orderedOn: '2026-03-02', status: 'Processing', hasResult: false, resultFileName: null },
-    { id: 'LAB-007', patientName: 'Aditya Kumar',  patientId: 'P-007', testType: 'X-Ray Forearm',                orderedBy: 'Dr. Rohan Mehta',  orderedOn: '2026-03-06', status: 'Pending',    hasResult: false, resultFileName: null },
-    { id: 'LAB-008', patientName: 'Deepa Menon',   patientId: 'P-008', testType: 'MRI Brain',                    orderedBy: 'Dr. Neha Singh',   orderedOn: '2026-03-05', status: 'Pending',    hasResult: false, resultFileName: null },
-];
 
 const statusStyle: Record<ReportStatus, { chip: string; row: string; dot?: boolean }> = {
     Pending:    { chip: 'bg-slate-100 text-slate-600 border-slate-200', row: 'border-l-4 border-l-slate-300' },
@@ -72,9 +60,13 @@ const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 // Component
 // ---------------------------------------------------------------------------
 export default function LabReports() {
-    const [reports, setReports]           = useState<LabReport[]>(mockReports);
+    const { user } = useAuth();
+    const isDoctor = user?.role === 'doctor';
+
+    const [reports, setReports]           = useState<LabReport[]>([]);
     const [patients, setPatients]         = useState<PatientOption[]>([]);
     const [doctors,  setDoctors]          = useState<DoctorOption[]>([]);
+    const [appointments, setAppointments] = useState<any[]>([]);
     const [search, setSearch]             = useState('');
     const [filterStatus, setFilterStatus] = useState<ReportFilter>('All');
     const [saving, setSaving]             = useState(false);
@@ -95,8 +87,8 @@ export default function LabReports() {
     // ── Load data on mount ──────────────────────────────────────────────────
     useEffect(() => {
         apiFetch('/lab-reports')
-            .then((data: LabReport[]) => setReports([...data, ...mockReports]))
-            .catch(() => setReports(mockReports));
+            .then((data: LabReport[]) => setReports(data))
+            .catch(() => setReports([]));
 
         apiFetch('/patients')
             .then((data: any[]) => setPatients(data.map(p => ({ id: p.id, name: p.name, doctor: p.doctor || '' }))))
@@ -105,7 +97,26 @@ export default function LabReports() {
         apiFetch('/doctors')
             .then((data: any[]) => setDoctors(data.map(d => ({ id: d.id, name: d.name }))))
             .catch(console.error);
+
+        apiFetch('/appointments')
+            .then(setAppointments)
+            .catch(() => {});
     }, []);
+
+    // ── Role-based view: doctors see all reports for THEIR patients ──────────────────
+    const visibleReports = useMemo(() => {
+        if (!isDoctor) return reports;
+        // Build the set of patient IDs this doctor is responsible for
+        const apptPatientIds = new Set(
+            appointments.filter(a => a.doctor === user?.name).map(a => a.patientId)
+        );
+        const patientDocIds = new Set(
+            patients.filter(p => p.doctor === user?.name).map(p => p.id)
+        );
+        const myPatientIds = new Set([...apptPatientIds, ...patientDocIds]);
+        // Return ALL reports for those patients
+        return reports.filter(r => r.patientId != null && myPatientIds.has(r.patientId));
+    }, [reports, appointments, patients, isDoctor, user?.name]);
 
     // ── When patient selected, auto-fill their doctor ───────────────────────
     const handlePatientSelect = (patientId: string) => {
@@ -119,7 +130,7 @@ export default function LabReports() {
     };
 
     // ── Filter ───────────────────────────────────────────────────────────────
-    const filtered = reports.filter((r) => {
+    const filtered = visibleReports.filter((r) => {
         const matchSearch =
             r.patientName.toLowerCase().includes(search.toLowerCase()) ||
             r.testType.toLowerCase().includes(search.toLowerCase()) ||
@@ -231,9 +242,9 @@ export default function LabReports() {
         }
     };
 
-    const ready      = reports.filter(r => r.status === 'Ready').length;
-    const processing = reports.filter(r => r.status === 'Processing').length;
-    const pending    = reports.filter(r => r.status === 'Pending').length;
+    const ready      = visibleReports.filter(r => r.status === 'Ready').length;
+    const processing = visibleReports.filter(r => r.status === 'Processing').length;
+    const pending    = visibleReports.filter(r => r.status === 'Pending').length;
 
     return (
         <div className="space-y-6">
@@ -241,7 +252,9 @@ export default function LabReports() {
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Lab Reports</h1>
-                    <p className="text-sm text-slate-500">Track and manage all lab test orders and results</p>
+                    <p className="text-sm text-slate-500">
+                        {isDoctor ? `Reports ordered by ${user?.name}` : 'Track and manage all lab test orders and results'}
+                    </p>
                 </div>
                 <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="mr-2 h-4 w-4" /> Order Test
@@ -256,7 +269,7 @@ export default function LabReports() {
                         { label: 'Processing', count: processing, color: 'bg-amber-400',  text: 'text-amber-600',  desc: 'Currently being processed' },
                         { label: 'Ready',      count: ready,      color: 'bg-green-500',  text: 'text-green-600',  desc: 'Results available' },
                     ].map((stage, i) => {
-                        const pct = reports.length > 0 ? Math.round((stage.count / reports.length) * 100) : 0;
+                        const pct = visibleReports.length > 0 ? Math.round((stage.count / visibleReports.length) * 100) : 0;
                         return (
                             <div key={stage.label} className="relative p-4">
                                 <div className="flex items-end justify-between mb-2">
@@ -288,7 +301,7 @@ export default function LabReports() {
                         </div>
                         <div className="flex gap-2 flex-wrap">
                             {REPORT_FILTERS.map((f) => {
-                                const count = f === 'All' ? reports.length : reports.filter(r => r.status === f).length;
+                                const count = f === 'All' ? visibleReports.length : visibleReports.filter(r => r.status === f).length;
                                 return (
                                     <button key={f} onClick={() => setFilterStatus(f)}
                                         className={`rounded-full px-3 py-1 text-xs font-semibold border transition-all ${
@@ -324,8 +337,8 @@ export default function LabReports() {
                             )}
                             {filtered.map((r) => (
                                 <TableRow key={r.id} className={`hover:bg-slate-50 ${statusStyle[r.status].row}`}>
-                                    <TableCell className="font-mono text-xs text-slate-500">
-                                        {r.id.startsWith('LAB-') ? r.id : r.id.slice(0, 8) + '…'}
+                                    <TableCell className="font-mono text-xs text-slate-500" title={r.id}>
+                                        {r.id.startsWith('LAB-') ? r.id : (r.reportNumber ? `LAB-${String(r.reportNumber).padStart(3, '0')}` : r.id.slice(0, 8) + '…')}
                                     </TableCell>
                                     <TableCell>
                                         <p className="font-medium text-slate-800">{r.patientName}</p>
@@ -426,14 +439,20 @@ export default function LabReports() {
                             </SelectContent>
                         </Select>
 
-                        {/* Ordered by — live doctor dropdown */}
-                        <Select value={newReport.orderedBy} onValueChange={(v) => setNewReport({ ...newReport, orderedBy: v })}>
-                            <SelectTrigger><SelectValue placeholder="Ordered By (Doctor) *" /></SelectTrigger>
-                            <SelectContent>
-                                {doctors.length === 0 && <SelectItem value="__none" disabled>No doctors registered yet</SelectItem>}
-                                {doctors.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        {/* Ordered by — locked for doctor, open dropdown for others */}
+                        {isDoctor ? (
+                            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                Ordered by: <strong>{user?.name}</strong>
+                            </div>
+                        ) : (
+                            <Select value={newReport.orderedBy} onValueChange={(v) => setNewReport({ ...newReport, orderedBy: v })}>
+                                <SelectTrigger><SelectValue placeholder="Ordered By (Doctor) *" /></SelectTrigger>
+                                <SelectContent>
+                                    {doctors.length === 0 && <SelectItem value="__none" disabled>No doctors registered yet</SelectItem>}
+                                    {doctors.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>

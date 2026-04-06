@@ -39,7 +39,7 @@ const BASE_NAV_GROUPS = [
             { label: 'Patients',     icon: <Users className="h-4 w-4" />,          path: '/patients'     },
             { label: 'Doctors',      icon: <Stethoscope className="h-4 w-4" />,    path: '/doctors'      },
             { label: 'Appointments', icon: <CalendarDays className="h-4 w-4" />,   path: '/appointments' },
-            { label: 'Ward Mgmt',    icon: <BedDouble className="h-4 w-4" />,      path: '/ward'         },
+            { label: 'Ward Management', icon: <BedDouble className="h-4 w-4" />, path: '/ward'         },
         ],
     },
 ];
@@ -88,7 +88,7 @@ export default function Sidebar() {
             items: [
                 { label: 'Patients',     icon: <Users className="h-4 w-4" />,           path: '/patients'     },
                 { label: 'Appointments', icon: <CalendarDays className="h-4 w-4" />,    path: '/appointments' },
-                { label: 'Ward Mgmt',    icon: <BedDouble className="h-4 w-4" />,       path: '/ward'         },
+                { label: 'Ward Management', icon: <BedDouble className="h-4 w-4" />,  path: '/ward'         },
             ],
         },
         {
@@ -153,7 +153,6 @@ export default function Sidebar() {
                         : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100 hover:translate-x-1'
                 )}
             >
-                <span className="flex-shrink-0">{icon}</span>
                 <span className="whitespace-nowrap">{label}</span>
                 {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white/70" />}
             </Link>
@@ -163,7 +162,7 @@ export default function Sidebar() {
     return (
         <TooltipProvider delayDuration={80}>
             <motion.aside
-                animate={{ width: collapsed ? 64 : 236 }}
+                animate={{ width: collapsed ? 64 : 200 }}
                 transition={{ duration: 0.22, ease: 'easeInOut' }}
                 className="relative flex h-screen flex-shrink-0 flex-col bg-slate-900 text-slate-100 shadow-xl"
             >

@@ -22,3 +22,16 @@ export const getDoctors = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to fetch doctors" });
   }
 };
+
+export const updateDoctorStatus = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { status } = req.body;
+    const result = await doctorService.updateDoctorStatus(id, status);
+    const actor = (req as any).user?.name ?? 'System';
+    await logActivity('doctor', `${result.name} status changed to ${status}`, actor);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || 'Failed to update status' });
+  }
+};

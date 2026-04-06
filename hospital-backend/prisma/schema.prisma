@@ -50,15 +50,16 @@ model User {
 //////////////////////////////////////////////////////
 
 model Patient {
-  id        String   @id @default(uuid())
-  name      String
-  age       Int
-  gender    String
-  contact   String?
-  condition String?
-  doctor    String?
-  ward      String?  @default("General")
-  status    String?  @default("OPD")
+  id            String   @id @default(uuid())
+  patientNumber Int      @default(autoincrement())
+  name          String
+  age           Int
+  gender        String
+  contact       String?
+  condition     String?
+  doctor        String?
+  ward          String?  @default("General")
+  status        String?  @default("OPD")
 
   createdAt DateTime @default(now())
 
@@ -144,8 +145,9 @@ model Doctor {
 //////////////////////////////////////////////////////
 
 model Appointment {
-  id         String   @id @default(uuid())
-  patientId  String
+  id                String   @id @default(uuid())
+  appointmentNumber Int      @default(autoincrement())
+  patientId         String
   doctorId   String
   dateTime   DateTime
   status     AppointmentStatus @default(SCHEDULED)
@@ -162,8 +164,9 @@ model Appointment {
 //////////////////////////////////////////////////////
 
 model Admission {
-  id        String   @id @default(uuid())
-  patientId String
+  id              String   @id @default(uuid())
+  admissionNumber Int      @default(autoincrement())
+  patientId       String
   doctorId  String
   bedId     String
   reason    String
@@ -186,8 +189,9 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id          String        @id @default(uuid())
-  patientId   String
+  id            String        @id @default(uuid())
+  invoiceNumber Int           @default(autoincrement())
+  patientId     String
   doctorName  String
   doctorFee   Float         @default(0)
   labTests    Float         @default(0)
@@ -212,6 +216,7 @@ enum LabStatus {
 
 model LabReport {
   id               String    @id @default(uuid())
+  reportNumber     Int       @default(autoincrement())
   patientId        String?              // optional — independent tests have no patient record
   patientName      String               // always stored (typed manually if no patientId)
   testType         String
@@ -236,4 +241,13 @@ model ActivityLog {
   actor      String   // name of the logged-in user who performed the action
 
   createdAt  DateTime @default(now())
+}
+
+//////////////////////////////////////////////////////
+// HOSPITAL SETTINGS (key-value store)
+//////////////////////////////////////////////////////
+
+model HospitalSetting {
+  key       String  @id   // e.g. "currency", "dateFormat"
+  value     String        // e.g. "INR", "DD/MM/YYYY"
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { apiFetch } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -23,6 +24,7 @@ type ApptStatus = 'Scheduled' | 'Completed' | 'Cancelled';
 
 interface Appointment {
   id: string;
+  displayId: string;
   patientId: string;
   doctorId: string;
   patientName: string;
@@ -52,6 +54,9 @@ const statusColors: Record<ApptStatus, string> = {
 // Component
 // ---------------------------------------------------------------------------
 export default function AppointmentSystem() {
+  const { user } = useAuth();
+  const isDoctor = user?.role === 'doctor';
+
   const [appointments, setAppointments]   = useState<Appointment[]>([]);
   const [patients,     setPatients]       = useState<PatientOption[]>([]);
   const [doctors,      setDoctors]        = useState<DoctorOption[]>([]);
@@ -67,7 +72,13 @@ export default function AppointmentSystem() {
   useEffect(() => {
     // Appointments list
     apiFetch('/appointments')
-      .then((data: Appointment[]) => setAppointments(data))
+      .then((data: any[]) => {
+          const mapped: Appointment[] = data.map((a) => ({
+              ...a,
+              displayId: a.appointmentNumber ? `APT-${String(a.appointmentNumber).padStart(3, '0')}` : a.id.slice(0, 8)
+          }));
+          setAppointments(mapped);
+      })
       .catch(console.error);
 
     // Patient options for the booking form dropdown
@@ -82,7 +93,13 @@ export default function AppointmentSystem() {
   }, []);
 
   // ── Filter ──────────────────────────────────────────────────────────────
-  const filtered = appointments.filter((a) => {
+  // For doctors: only show appointments assigned to them
+  const myAppointments = useMemo(() => {
+    if (!isDoctor) return appointments;
+    return appointments.filter(a => a.doctor === user?.name);
+  }, [appointments, isDoctor, user?.name]);
+
+  const filtered = myAppointments.filter((a) => {
     const matchSearch =
       a.patientName.toLowerCase().includes(search.toLowerCase()) ||
       a.doctor.toLowerCase().includes(search.toLowerCase()) ||
@@ -90,6 +107,10 @@ export default function AppointmentSystem() {
     const matchStatus = filterStatus === 'all' || a.status === filterStatus;
     return matchSearch && matchStatus;
   });
+
+  const scheduled = myAppointments.filter(a => a.status === 'Scheduled').length;
+  const completed  = myAppointments.filter(a => a.status === 'Completed').length;
+  const cancelled  = myAppointments.filter(a => a.status === 'Cancelled').length;
 
   // ── Status update ────────────────────────────────────────────────────────
   const updateStatus = async (id: string, status: ApptStatus) => {
@@ -129,7 +150,12 @@ export default function AppointmentSystem() {
         }),
       });
 
-      setAppointments(prev => [result, ...prev]);
+      const mappedResult = {
+        ...result,
+        displayId: result.appointmentNumber ? `APT-${String(result.appointmentNumber).padStart(3, '0')}` : result.id.slice(0, 8),
+      };
+
+      setAppointments(prev => [mappedResult, ...prev]);
       setNewAppt({ patientId: '', doctorId: '', date: '', time: '', type: 'OPD' });
       setShowAddDialog(false);
       toast.success('Appointment booked successfully!');
@@ -140,16 +166,17 @@ export default function AppointmentSystem() {
     }
   };
 
-  const scheduled = appointments.filter(a => a.status === 'Scheduled').length;
-  const completed  = appointments.filter(a => a.status === 'Completed').length;
-  const cancelled  = appointments.filter(a => a.status === 'Cancelled').length;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Appointments</h1>
-          <p className="text-sm text-slate-500">Schedule and manage all patient appointments</p>
+      <div>
+          <h1 className="text-2xl font-bold text-slate-800">
+            {isDoctor ? 'My Appointments' : 'Appointments'}
+          </h1>
+          <p className="text-sm text-slate-500">
+            {isDoctor ? `Showing appointments assigned to ${user?.name}` : 'Schedule and manage all patient appointments'}
+          </p>
         </div>
         <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700">
           <Plus className="mr-2 h-4 w-4" /> Book Appointment
@@ -225,7 +252,7 @@ export default function AppointmentSystem() {
               )}
               {filtered.map((a) => (
                 <TableRow key={a.id} className="hover:bg-slate-50">
-                  <TableCell className="font-mono text-xs text-slate-500">{a.id.slice(0, 8)}…</TableCell>
+                  <TableCell className="font-mono text-xs text-slate-500" title={a.id}>{a.displayId}</TableCell>
                   <TableCell className="font-medium text-slate-800">{a.patientName}</TableCell>
                   <TableCell className="text-sm text-slate-600">{a.doctor}</TableCell>
                   <TableCell className="text-sm text-slate-500">{a.department}</TableCell>
@@ -271,14 +298,20 @@ export default function AppointmentSystem() {
               </SelectContent>
             </Select>
 
-            {/* Doctor — live from DB */}
-            <Select value={newAppt.doctorId} onValueChange={(v) => setNewAppt({ ...newAppt, doctorId: v })}>
-              <SelectTrigger><SelectValue placeholder="Select Doctor *" /></SelectTrigger>
-              <SelectContent>
-                {doctors.length === 0 && <SelectItem value="__none" disabled>No doctors registered yet</SelectItem>}
-                {doctors.map(d => <SelectItem key={d.id} value={d.id}>{d.name} — {d.department}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {/* Doctor — locked for doctors, open dropdown for admins/receptionists */}
+            {isDoctor ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                Doctor: <strong>{user?.name}</strong>
+              </div>
+            ) : (
+              <Select value={newAppt.doctorId} onValueChange={(v) => setNewAppt({ ...newAppt, doctorId: v })}>
+                <SelectTrigger><SelectValue placeholder="Select Doctor *" /></SelectTrigger>
+                <SelectContent>
+                  {doctors.length === 0 && <SelectItem value="__none" disabled>No doctors registered yet</SelectItem>}
+                  {doctors.map(d => <SelectItem key={d.id} value={d.id}>{d.name} — {d.department}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
 
             {/* Date + Time */}
             <div className="grid grid-cols-2 gap-3">

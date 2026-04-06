@@ -23,6 +23,7 @@ type BillStatus = 'Paid' | 'Pending' | 'Overdue';
 
 interface Bill {
     id: string;
+    invoiceNumber?: number;
     patientId: string;
     patientName: string;
     doctor: string;
@@ -83,10 +84,10 @@ export default function Billing() {
 
     // ── Load data ────────────────────────────────────────────────────────────
     useEffect(() => {
-        // Load real invoices from DB (prepend to mock data)
+        // Load real invoices from DB — use mock only as fallback
         apiFetch('/billing')
-            .then((data: Bill[]) => setBills([...data, ...mockBills]))
-            .catch(() => setBills(mockBills)); // fallback to mock if not logged in
+            .then((data: Bill[]) => setBills(data))
+            .catch(() => setBills(mockBills));
 
         // Load patients for the dropdown
         apiFetch('/patients')
@@ -265,8 +266,8 @@ export default function Billing() {
                                 const total = bill.doctorFee + bill.labTests + bill.medication + bill.roomCharges;
                                 return (
                                     <TableRow key={bill.id} className={`hover:brightness-95 transition-all ${rowTint[bill.status]}`}>
-                                        <TableCell className="font-mono text-xs text-slate-500">
-                                            {bill.id.startsWith('INV-') ? bill.id : bill.id.slice(0, 8) + '…'}
+                                        <TableCell className="font-mono text-xs text-slate-500" title={bill.id}>
+                                            {bill.id.startsWith('INV-') ? bill.id : (bill.invoiceNumber ? `INV-${String(bill.invoiceNumber).padStart(3, '0')}` : bill.id.slice(0, 8) + '…')}
                                         </TableCell>
                                         <TableCell>
                                             <p className="font-medium text-slate-800">{bill.patientName}</p>

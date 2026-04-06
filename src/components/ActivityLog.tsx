@@ -83,10 +83,10 @@ export default function ActivityLog() {
     setLoading(true);
     try {
       const data: LogEntry[] = await apiFetch(`/activity-log?from=${fromDate}&to=${toDate}`);
-      // Real logs newest-first on top, mock demos below
-      setLogs([...data, ...mockLogs]);
+      // Show only real logs from DB
+      setLogs(data);
     } catch {
-      setLogs(mockLogs); // fallback on auth failure / server down
+      setLogs(mockLogs); // fallback when server is unreachable
     } finally {
       setLoading(false);
     }

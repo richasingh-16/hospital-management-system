@@ -7,11 +7,8 @@
  *
  * Three things live here:
  *  1. The current `user` object  (null = not logged in)
- *  2. `login(email, password)` — validates credentials, sets user in state
- *  3. `logout()`               — clears user state, redirects to login
- *
- * We also persist the user in localStorage so a page refresh doesn't log
- * you out (same thing every real app does with JWT tokens or sessions).
+ *  2. `login(employeeId, password)` — validates credentials with backend, sets user in state, saves JWT token
+ *  3. `logout()`               — clears user state and token, redirects to login
  */
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
@@ -19,7 +16,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-export type UserRole = 'admin' | 'doctor' | 'receptionist';
+export type UserRole = 'admin' | 'doctor' | 'receptionist' | 'lab_technician';
 
 export interface AuthUser {
   name: string;
@@ -31,46 +28,10 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (email: string, password: string) => { ok: boolean; error?: string };
+  login: (employeeId: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   setLoggedInUser: (userData: AuthUser) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Mock credential store — replace this with real API calls later
-//
-// Pattern:  email + password  → AuthUser
-// When you add a backend:
-//   POST /api/auth/login  { email, password }
-//   Returns: { token, user }
-//   Store the JWT in localStorage instead of the user object.
-// ---------------------------------------------------------------------------
-const MOCK_USERS: (AuthUser & { password: string })[] = [
-  {
-    email: 'admin@mediflow.com',
-    password: 'admin123',
-    name: 'Admin User',
-    role: 'admin',
-    avatar: 'A',
-  },
-  {
-    email: 'doctor@mediflow.com',
-    password: 'doctor123',
-    name: 'Dr. Ananya Bose',
-    role: 'doctor',
-    department: 'General Medicine',
-    avatar: 'D',
-  },
-  {
-    email: 'reception@mediflow.com',
-    password: 'welcome123',
-    name: 'Riya Kapoor',
-    role: 'receptionist',
-    avatar: 'R',
-  },
-];
-
-const STORAGE_KEY = 'mediflow_user';
 
 // ---------------------------------------------------------------------------
 // Context
@@ -84,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Try to restore user from a previous session (localStorage)
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem('mediflow_user');
       return stored ? (JSON.parse(stored) as AuthUser) : null;
     } catch {
       return null;
@@ -93,40 +54,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /**
    * login()
-   *  - Checks email+password against MOCK_USERS
-   *  - If valid → stores user in state AND localStorage
-   *  - Returns { ok: true } on success, { ok: false, error: '...' } on fail
+   *  - Authenticates via backend
+   *  - Stores the JWT token securely
    */
-  const login = (email: string, password: string) => {
-    const match = MOCK_USERS.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
+  const login = async (employeeId: string, password: string) => {
+    try {
+      // NOTE: We don't use apiFetch here since apiFetch automatically appends token from localStorage
+      // which we don't need for login. Using the standard fetch.
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: employeeId.trim(), password }),
+      });
 
-    if (!match) {
-      return { ok: false, error: 'Invalid email or password.' };
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data.error || 'Invalid credentials' };
+      }
+
+      // Save the generated JWT token to localStorage so apiFetch uses it
+      localStorage.setItem("hospital_token", data.token);
+
+      // Create the AuthUser
+      const authUser: AuthUser = {
+        name: data.user.name,
+        email: data.user.employeeId, // we map standard frontend email -> employeeId
+        role: data.user.role.toLowerCase() as UserRole,
+        avatar: data.user.name.charAt(0)
+      };
+
+      setUser(authUser);
+      localStorage.setItem('mediflow_user', JSON.stringify(authUser));
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: 'Network error connecting to the server' };
     }
-
-    // Strip the password before storing
-    const { password: _pw, ...authUser } = match;
-    setUser(authUser);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
-    return { ok: true };
   };
 
   /**
    * logout()
-   *  - Clears user from state and localStorage
-   *  - The app automatically re-renders and shows <LoginPage />
-   *    because App.tsx checks `if (!user) return <LoginPage />`
    */
   const logout = () => {
     setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('mediflow_user');
+    localStorage.removeItem('hospital_token');
   };
 
   const setLoggedInUser = (userData: AuthUser) => {
     setUser(userData);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+    localStorage.setItem('mediflow_user', JSON.stringify(userData));
   };
 
   return (

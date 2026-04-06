@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Search, Plus, UserRound } from 'lucide-react';
@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiFetch } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 import {
     Table,
@@ -38,6 +39,7 @@ type PatientStatus = 'OPD' | 'Admitted' | 'Discharged';
 
 interface Patient {
     id: string;
+    displayId: string;
     name: string;
     age: number;
     gender: string;
@@ -49,18 +51,6 @@ interface Patient {
     contact: string;
 }
 
-const initialPatients: Patient[] = [
-    { id: 'P-001', name: 'Rahul Verma', age: 34, gender: 'Male', condition: 'Hypertension', doctor: 'Dr. Ananya Bose', ward: 'General', admittedOn: '2026-03-01', status: 'Admitted', contact: '+91 98765 43210' },
-    { id: 'P-002', name: 'Priya Sharma', age: 27, gender: 'Female', condition: 'Appendicitis', doctor: 'Dr. Rohan Mehta', ward: 'Surgery', admittedOn: '2026-03-04', status: 'Admitted', contact: '+91 97654 32109' },
-    { id: 'P-003', name: 'Arjun Patel', age: 52, gender: 'Male', condition: 'Cardiac Arrest', doctor: 'Dr. Neha Singh', ward: 'ICU', admittedOn: '2026-03-05', status: 'Admitted', contact: '+91 96543 21098' },
-    { id: 'P-004', name: 'Sunita Iyer', age: 45, gender: 'Female', condition: 'Diabetes', doctor: 'Dr. Ananya Bose', ward: 'General', admittedOn: '2026-03-03', status: 'OPD', contact: '+91 95432 10987' },
-    { id: 'P-005', name: 'Vikram Desai', age: 60, gender: 'Male', condition: 'Knee Replacement', doctor: 'Dr. Rohan Mehta', ward: 'Ortho', admittedOn: '2026-02-28', status: 'Discharged', contact: '+91 94321 09876' },
-    { id: 'P-006', name: 'Meera Nair', age: 31, gender: 'Female', condition: 'Pneumonia', doctor: 'Dr. Kiran Rao', ward: 'General', admittedOn: '2026-03-02', status: 'Admitted', contact: '+91 93210 98765' },
-    { id: 'P-007', name: 'Aditya Kumar', age: 22, gender: 'Male', condition: 'Fracture - Arm', doctor: 'Dr. Rohan Mehta', ward: 'Emergency', admittedOn: '2026-03-06', status: 'Admitted', contact: '+91 92109 87654' },
-    { id: 'P-008', name: 'Deepa Menon', age: 39, gender: 'Female', condition: 'Migraine', doctor: 'Dr. Neha Singh', ward: 'Neurology', admittedOn: '2026-03-05', status: 'OPD', contact: '+91 91098 76543' },
-    { id: 'P-009', name: 'Sanjay Gupta', age: 58, gender: 'Male', condition: 'Liver Cirrhosis', doctor: 'Dr. Kiran Rao', ward: 'ICU', admittedOn: '2026-03-03', status: 'Admitted', contact: '+91 90987 65432' },
-    { id: 'P-010', name: 'Kavitha Reddy', age: 44, gender: 'Female', condition: 'Typhoid Fever', doctor: 'Dr. Ananya Bose', ward: 'General', admittedOn: '2026-03-01', status: 'Discharged', contact: '+91 89876 54321' },
-];
 
 // Doctor option loaded from live API
 interface DoctorOption { id: string; name: string; department: string; }
@@ -84,7 +74,12 @@ const FILTERS: { key: FilterKey; label: string; color: string }[] = [
 // Component
 // ---------------------------------------------------------------------------
 export default function Patients() {
+    const { user } = useAuth();
+    const isDoctor = user?.role === 'doctor';
+    const isAdmin = user?.role === 'admin';
+
     const [patients, setPatients] = useState<Patient[]>([]);
+    const [appointments, setAppointments] = useState<any[]>([]);
     const [liveDoctors, setLiveDoctors] = useState<DoctorOption[]>([]);
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState<FilterKey>('All');
@@ -100,19 +95,24 @@ export default function Patients() {
             .then((data) => {
                 const mapped = data.map((p: any) => ({
                     id: p.id,
+                    displayId: p.patientNumber ? `P-${String(p.patientNumber).padStart(3, '0')}` : (p.id.length > 10 ? p.id.slice(0, 8) : p.id),
                     name: p.name,
                     age: p.age,
                     gender: p.gender,
                     condition: p.condition || '-',
                     doctor: p.doctor || 'Unassigned',
                     ward: p.ward || 'General',
-                    admittedOn: new Date(p.createdAt).toISOString().split('T')[0],
+                    admittedOn: p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : '-',
                     status: p.status || 'OPD',
                     contact: p.contact || '-',
                 }));
-                setPatients([...mapped, ...initialPatients]);
+                setPatients(mapped);
             })
-            .catch(console.error);
+            .catch(() => setPatients([]));
+
+        apiFetch("/appointments")
+            .then(setAppointments)
+            .catch(() => {});
 
         // Load live doctors for the dropdown
         apiFetch("/doctors")
@@ -122,10 +122,22 @@ export default function Patients() {
             .catch(console.error);
     }, []);
 
-    const filtered = patients.filter((p) => {
+    // Doctors see only patients they have appointments with
+    const myPatients = useMemo(() => {
+        if (!isDoctor) return patients;
+        const myPatientIds = new Set(
+            appointments
+                .filter(a => a.doctor === user?.name)
+                .map(a => a.patientId)
+        );
+        // Also include patients recorded with this doctor's name in the doctor field
+        return patients.filter(p => myPatientIds.has(p.id) || p.doctor === user?.name);
+    }, [patients, appointments, isDoctor, user?.name]);
+
+    const filtered = myPatients.filter((p) => {
         const matchSearch =
             p.name.toLowerCase().includes(search.toLowerCase()) ||
-            p.id.toLowerCase().includes(search.toLowerCase()) ||
+            p.displayId.toLowerCase().includes(search.toLowerCase()) ||
             p.condition.toLowerCase().includes(search.toLowerCase());
         const matchStatus = filterStatus === 'All' || p.status === filterStatus;
         return matchSearch && matchStatus;
@@ -151,13 +163,14 @@ export default function Patients() {
 
             const patient: Patient = {
                 id: result.id,
+                displayId: result.patientNumber ? `P-${String(result.patientNumber).padStart(3, '0')}` : result.id.slice(0, 8),
                 name: result.name,
                 age: result.age,
                 gender: result.gender,
                 condition: result.condition,
                 doctor: result.doctor,
                 ward: result.ward,
-                admittedOn: new Date(result.createdAt).toISOString().split('T')[0],
+                admittedOn: result.createdAt ? new Date(result.createdAt).toISOString().split('T')[0] : '-',
                 status: result.status,
                 contact: result.contact,
             };
@@ -173,12 +186,39 @@ export default function Patients() {
         }
     };
 
-    const handleDischarge = (id: string) => {
+    const handleDischarge = async (id: string) => {
         const patient = patients.find((p) => p.id === id);
-        setPatients((prev) =>
-            prev.map((p) => (p.id === id ? { ...p, status: 'Discharged' } : p))
-        );
-        if (patient) toast.success(`${patient.name} discharged successfully`);
+        // Mock patients (P-001 style) only update local state
+        if (id.startsWith('P-')) {
+            setPatients((prev) =>
+                prev.map((p) => (p.id === id ? { ...p, status: 'Discharged' } : p))
+            );
+            if (patient) toast.success(`${patient.name} discharged successfully`);
+            return;
+        }
+        try {
+            await apiFetch(`/patients/${id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: 'Discharged' }),
+            });
+            setPatients((prev) =>
+                prev.map((p) => (p.id === id ? { ...p, status: 'Discharged' } : p))
+            );
+            if (patient) toast.success(`${patient.name} discharged successfully`);
+        } catch (err: any) {
+            toast.error(err.message || 'Discharge failed');
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this patient record? This action cannot be undone.')) return;
+        try {
+            await apiFetch(`/patients/${id}`, { method: 'DELETE' });
+            setPatients((prev) => prev.filter((p) => p.id !== id));
+            toast.success('Patient deleted successfully');
+        } catch (err: any) {
+            toast.error(err.message || 'Deletion failed');
+        }
     };
 
     // Summary counts
@@ -274,7 +314,9 @@ export default function Patients() {
                         <TableBody>
                             {filtered.map((patient) => (
                                 <TableRow key={patient.id} className={`hover:bg-slate-50 ${rowAccent[patient.status]}`}>
-                                    <TableCell className="font-mono text-xs text-slate-500">{patient.id}</TableCell>
+                                    <TableCell title={patient.id} className="font-mono text-xs text-slate-500">
+                                        {patient.displayId}
+                                    </TableCell>
                                     <TableCell>
                                         <div>
                                             <p className="font-medium text-slate-800">{patient.name}</p>
@@ -313,6 +355,16 @@ export default function Patients() {
                                                     onClick={() => handleDischarge(patient.id)}
                                                 >
                                                     Discharge
+                                                </Button>
+                                            )}
+                                            {isAdmin && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                                    onClick={() => handleDelete(patient.id)}
+                                                >
+                                                    Delete
                                                 </Button>
                                             )}
                                         </div>

@@ -27,6 +27,7 @@ interface Doctor {
     experience: number;
     contact: string;
     availability: Availability;
+    fromDB?: boolean;   // true = real DB record, false/undefined = mock demo
 }
 
 const initialDoctors: Doctor[] = [
@@ -79,15 +80,22 @@ export default function Doctors() {
         name: '', department: '', specialization: '', experience: '', contact: '',
     });
 
+    const availMap: Record<string, Availability> = {
+        AVAILABLE: 'Available',
+        IN_SURGERY: 'In Surgery',
+        ON_LEAVE: 'On Leave',
+        BUSY: 'Busy',
+    };
+    const statusMap: Record<Availability, string> = {
+        'Available':  'AVAILABLE',
+        'In Surgery': 'IN_SURGERY',
+        'On Leave':   'ON_LEAVE',
+        'Busy':       'BUSY',
+    };
+
     useEffect(() => {
         apiFetch('/doctors')
             .then((data: any[]) => {
-                const availMap: Record<string, Availability> = {
-                        AVAILABLE: 'Available',
-                        IN_SURGERY: 'In Surgery',
-                        ON_LEAVE: 'On Leave',
-                        BUSY: 'Busy',
-                    };
                 const mapped: Doctor[] = data.map(d => ({
                     id: d.id,
                     name: d.name,
@@ -97,15 +105,41 @@ export default function Doctors() {
                     contact: d.contact,
                     patientsToday: d.patientsToday ?? 0,
                     availability: (availMap[d.availability] ?? 'Available') as Availability,
+                    fromDB: true,
                 }));
-                // Show real DB doctors first, then append mock demos
                 setDoctors([...mapped, ...initialDoctors]);
             })
             .catch(() => {
-                // If API fails (not logged in yet, etc.) fall back to mock data
                 setDoctors(initialDoctors);
             });
     }, []);
+
+    const handleStatusChange = async (doctorId: string, newAvail: Availability) => {
+        // Optimistic update
+        setDoctors(prev =>
+            prev.map(d => d.id === doctorId ? { ...d, availability: newAvail } : d)
+        );
+        try {
+            await apiFetch(`/doctors/${doctorId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: statusMap[newAvail] }),
+            });
+            toast.success(`Status updated to "${newAvail}"`);
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to update status');
+            // Revert on failure — re-fetch
+            apiFetch('/doctors').then((data: any[]) => {
+                setDoctors(prev => {
+                    const dbMap = new Map(data.map((d: any) => [d.id, d]));
+                    return prev.map(d =>
+                        dbMap.has(d.id)
+                            ? { ...d, availability: (availMap[dbMap.get(d.id).availability] ?? 'Available') as Availability }
+                            : d
+                    );
+                });
+            }).catch(() => {});
+        }
+    };
 
     const filtered = doctors.filter((d) => {
         const matchSearch =
@@ -251,10 +285,28 @@ export default function Doctors() {
                                                 <p className="text-xs text-slate-500 mt-0.5">{doctor.specialization}</p>
                                             </div>
                                         </div>
-                                        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${avail.chip}`}>
-                                            <span className={`h-1.5 w-1.5 rounded-full ${avail.dot}`} />
-                                            {doctor.availability}
-                                        </span>
+                                        {doctor.fromDB ? (
+                                            <Select
+                                                value={doctor.availability}
+                                                onValueChange={(v) => handleStatusChange(doctor.id, v as Availability)}
+                                            >
+                                                <SelectTrigger className={`h-6 w-auto gap-1 rounded-full border px-2 py-0 text-[10px] font-semibold shadow-none focus:ring-0 ${avail.chip}`}>
+                                                    <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${avail.dot}`} />
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent align="end">
+                                                    <SelectItem value="Available">Available</SelectItem>
+                                                    <SelectItem value="Busy">Busy</SelectItem>
+                                                    <SelectItem value="In Surgery">In Surgery</SelectItem>
+                                                    <SelectItem value="On Leave">On Leave</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${avail.chip}`}>
+                                                <span className={`h-1.5 w-1.5 rounded-full ${avail.dot}`} />
+                                                {doctor.availability}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* Details grid */}
