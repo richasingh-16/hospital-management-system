@@ -26,12 +26,11 @@ const app = express();
 app.use(helmet());
 
 // ── CORS ── only allow the configured frontend origin ──────────────────────
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use(cors({
-  origin: allowedOrigin,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: process.env.FRONTEND_URL,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // ── Body parser ────────────────────────────────────────────────────────────
