@@ -22,6 +22,9 @@ import settingsRoutes from "./modules/settings/settings.routes";
 
 const app = express();
 
+// Trust proxy for Railway/Vercel (needed for express-rate-limit)
+app.set("trust proxy", 1);
+
 // ── Security headers (XSS, clickjacking, MIME sniffing, etc.) ──────────────
 app.use(helmet());
 
