@@ -6,9 +6,141 @@ datasource db {
   provider = "postgresql"
 }
 
-//////////////////////////////////////////////////////
-// ENUMS
-//////////////////////////////////////////////////////
+model User {
+  id         String   @id @default(uuid())
+  employeeId String   @unique
+  name       String
+  password   String
+  role       Role
+  createdAt  DateTime @default(now())
+  doctor     Doctor?
+}
+
+model Patient {
+  id            String        @id @default(uuid())
+  name          String
+  age           Int
+  gender        String
+  createdAt     DateTime      @default(now())
+  condition     String?
+  contact       String?
+  doctor        String?
+  status        String?       @default("OPD")
+  ward          String?       @default("General")
+  patientNumber Int           @default(autoincrement())
+  admissions    Admission[]
+  appointments  Appointment[]
+  invoices      Invoice[]
+  labReports    LabReport[]
+}
+
+model Department {
+  id      String   @id @default(uuid())
+  name    String   @unique
+  doctors Doctor[]
+}
+
+model Ward {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  floor     Int
+  capacity  Int
+  createdAt DateTime @default(now())
+  beds      Bed[]
+}
+
+model Bed {
+  id         String      @id @default(uuid())
+  wardId     String
+  number     Int
+  status     BedStatus   @default(AVAILABLE)
+  createdAt  DateTime    @default(now())
+  admissions Admission[]
+  ward       Ward        @relation(fields: [wardId], references: [id])
+}
+
+model Doctor {
+  id             String        @id @default(uuid())
+  userId         String        @unique
+  departmentId   String
+  specialization String
+  experience     Int
+  createdAt      DateTime      @default(now())
+  patientsToday  Int           @default(0)
+  phone          String
+  status         DoctorStatus  @default(AVAILABLE)
+  admissions     Admission[]
+  appointments   Appointment[]
+  department     Department    @relation(fields: [departmentId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+}
+
+model Appointment {
+  id                String            @id @default(uuid())
+  doctorId          String
+  patientId         String
+  createdAt         DateTime          @default(now())
+  dateTime          DateTime
+  notes             String?
+  status            AppointmentStatus @default(SCHEDULED)
+  appointmentNumber Int               @default(autoincrement())
+  doctor            Doctor            @relation(fields: [doctorId], references: [id])
+  patient           Patient           @relation(fields: [patientId], references: [id])
+}
+
+model Admission {
+  id              String   @id @default(uuid())
+  patientId       String
+  doctorId        String
+  bedId           String
+  reason          String
+  createdAt       DateTime @default(now())
+  admissionNumber Int      @default(autoincrement())
+  bed             Bed      @relation(fields: [bedId], references: [id])
+  doctor          Doctor   @relation(fields: [doctorId], references: [id])
+  patient         Patient  @relation(fields: [patientId], references: [id])
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  patientId     String
+  doctorName    String
+  doctorFee     Float         @default(0)
+  labTests      Float         @default(0)
+  medication    Float         @default(0)
+  roomCharges   Float         @default(0)
+  status        InvoiceStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  invoiceNumber Int           @default(autoincrement())
+  patient       Patient       @relation(fields: [patientId], references: [id])
+}
+
+model LabReport {
+  id             String    @id @default(uuid())
+  patientId      String?
+  patientName    String
+  testType       String
+  orderedBy      String
+  status         LabStatus @default(PENDING)
+  resultFilePath String?
+  resultFileName String?
+  createdAt      DateTime  @default(now())
+  reportNumber   Int       @default(autoincrement())
+  patient        Patient?  @relation(fields: [patientId], references: [id])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  actionType String
+  message    String
+  actor      String
+  createdAt  DateTime @default(now())
+}
+
+model HospitalSetting {
+  key   String @id
+  value String
+}
 
 enum Role {
   ADMIN
@@ -30,157 +162,11 @@ enum AppointmentStatus {
   CANCELLED
 }
 
-//////////////////////////////////////////////////////
-// USER (EMPLOYEES LOGIN)
-//////////////////////////////////////////////////////
-
-model User {
-  id         String   @id @default(uuid())
-  employeeId String   @unique
-  name       String
-  password   String
-  role       Role
-  createdAt  DateTime @default(now())
-
-  doctor Doctor?
-}
-
-//////////////////////////////////////////////////////
-// PATIENT
-//////////////////////////////////////////////////////
-
-model Patient {
-  id            String   @id @default(uuid())
-  patientNumber Int      @default(autoincrement())
-  name          String
-  age           Int
-  gender        String
-  contact       String?
-  condition     String?
-  doctor        String?
-  ward          String?  @default("General")
-  status        String?  @default("OPD")
-
-  createdAt DateTime @default(now())
-
-  appointments Appointment[]
-  admissions   Admission[]
-  invoices     Invoice[]
-  labReports   LabReport[]
-}
-
-
-//////////////////////////////////////////////////////
-// DEPARTMENT
-//////////////////////////////////////////////////////
-
-model Department {
-  id   String @id @default(uuid())
-  name String @unique
-
-  doctors Doctor[]
-}
-
-//////////////////////////////////////////////////////
-// WARDS & BEDS
-//////////////////////////////////////////////////////
-
-model Ward {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  floor     Int
-  capacity  Int
-
-  beds      Bed[]
-
-  createdAt DateTime @default(now())
-}
-
-model Bed {
-  id        String   @id @default(uuid())
-  wardId    String
-  number    Int
-  status    BedStatus @default(AVAILABLE)
-
-  ward      Ward     @relation(fields: [wardId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  admissions Admission[]
-}
-
 enum BedStatus {
   AVAILABLE
   OCCUPIED
   MAINTENANCE
 }
-
-//////////////////////////////////////////////////////
-// DOCTOR PROFILE
-//////////////////////////////////////////////////////
-
-model Doctor {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  departmentId  String
-
-  specialization String
-  experience     Int
-  phone          String
-
-  status         DoctorStatus @default(AVAILABLE)
-  patientsToday  Int          @default(0)
-
-  createdAt      DateTime @default(now())
-
-  user       User       @relation(fields: [userId], references: [id])
-  department Department @relation(fields: [departmentId], references: [id])
-
-  appointments Appointment[]
-  admissions   Admission[]
-}
-
-//////////////////////////////////////////////////////
-// APPOINTMENTS
-//////////////////////////////////////////////////////
-
-model Appointment {
-  id                String   @id @default(uuid())
-  appointmentNumber Int      @default(autoincrement())
-  patientId         String
-  doctorId   String
-  dateTime   DateTime
-  status     AppointmentStatus @default(SCHEDULED)
-  notes      String?
-
-  createdAt  DateTime @default(now())
-
-  patient Patient @relation(fields: [patientId], references: [id])
-  doctor  Doctor  @relation(fields: [doctorId], references: [id])
-}
-
-//////////////////////////////////////////////////////
-// ADMISSIONS
-//////////////////////////////////////////////////////
-
-model Admission {
-  id              String   @id @default(uuid())
-  admissionNumber Int      @default(autoincrement())
-  patientId       String
-  doctorId  String
-  bedId     String
-  reason    String
-
-  patient   Patient @relation(fields: [patientId], references: [id])
-  doctor    Doctor  @relation(fields: [doctorId], references: [id])
-  bed       Bed     @relation(fields: [bedId], references: [id])
-
-  createdAt DateTime @default(now())
-}
-
-//////////////////////////////////////////////////////
-// BILLING / INVOICES
-//////////////////////////////////////////////////////
 
 enum InvoiceStatus {
   PAID
@@ -188,66 +174,8 @@ enum InvoiceStatus {
   OVERDUE
 }
 
-model Invoice {
-  id            String        @id @default(uuid())
-  invoiceNumber Int           @default(autoincrement())
-  patientId     String
-  doctorName  String
-  doctorFee   Float         @default(0)
-  labTests    Float         @default(0)
-  medication  Float         @default(0)
-  roomCharges Float         @default(0)
-  status      InvoiceStatus @default(PENDING)
-
-  createdAt   DateTime @default(now())
-
-  patient Patient @relation(fields: [patientId], references: [id])
-}
-
-//////////////////////////////////////////////////////
-// LAB REPORTS
-//////////////////////////////////////////////////////
-
 enum LabStatus {
   PENDING
   PROCESSING
   READY
-}
-
-model LabReport {
-  id               String    @id @default(uuid())
-  reportNumber     Int       @default(autoincrement())
-  patientId        String?              // optional — independent tests have no patient record
-  patientName      String               // always stored (typed manually if no patientId)
-  testType         String
-  orderedBy        String               // doctor name (string, not FK — can be external)
-  status           LabStatus @default(PENDING)
-  resultFilePath   String?              // path on disk where file is saved
-  resultFileName   String?              // original filename shown to user
-
-  createdAt        DateTime @default(now())
-
-  patient          Patient?  @relation(fields: [patientId], references: [id])
-}
-
-//////////////////////////////////////////////////////
-// ACTIVITY LOG
-//////////////////////////////////////////////////////
-
-model ActivityLog {
-  id         String   @id @default(uuid())
-  actionType String   // "patient" | "appointment" | "billing" | "lab" | "doctor"
-  message    String   // human-readable description of the action
-  actor      String   // name of the logged-in user who performed the action
-
-  createdAt  DateTime @default(now())
-}
-
-//////////////////////////////////////////////////////
-// HOSPITAL SETTINGS (key-value store)
-//////////////////////////////////////////////////////
-
-model HospitalSetting {
-  key       String  @id   // e.g. "currency", "dateFormat"
-  value     String        // e.g. "INR", "DD/MM/YYYY"
 }
